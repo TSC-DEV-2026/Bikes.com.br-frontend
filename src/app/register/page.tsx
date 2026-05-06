@@ -1,8 +1,6 @@
-"use client";
-
 import type React from "react";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -34,8 +32,8 @@ const useDeviceType = (): DeviceType => {
 };
 
 export default function RegisterPage() {
-  const pathname = usePathname();
-  const router = useRouter();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const deviceType = useDeviceType();
 
   const [pessoaTipo, setPessoaTipo] = useState<PessoaTipo>("PF");
@@ -276,7 +274,7 @@ export default function RegisterPage() {
           setIsLoading(true);
 
           await sleep(2500);
-          router.push("/login", { scroll: false });
+          navigate("/login", { replace: true });
           setCurrentPage(1);
           setTermsAccepted(false);
           setShowPassword(false);
@@ -313,7 +311,7 @@ export default function RegisterPage() {
         setIsLoading(false);
       }
     },
-    [termsAccepted, formData, pessoaTipo, cleanNumber, router]
+    [termsAccepted, formData, pessoaTipo, cleanNumber, navigate]
   );
 
   // =========================

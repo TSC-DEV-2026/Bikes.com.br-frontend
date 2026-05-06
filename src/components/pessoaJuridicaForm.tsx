@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { FaArrowRight, FaArrowLeft, FaArrowRightToBracket } from "react-icons/fa6"
 import { IoEyeSharp, IoEyeOffSharp } from "react-icons/io5"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 
 type DeviceType = "mobile" | "tablet" | "laptop" | "desktop"
 
@@ -52,7 +52,7 @@ export default function PessoaJuridicaForm({
   errors,
   deviceType,
   currentPage,
-  totalPages,
+  totalPages: _totalPages,
   showPassword,
   isLoading,
   termsAccepted,
@@ -358,9 +358,8 @@ export default function PessoaJuridicaForm({
       >
         Já tem uma conta?{" "}
         <Link
-          href="/login"
+          to="/login"
           className="text-[#09bc8a] hover:underline hover:text-[#000000] underline decoration-solid"
-          scroll={false}
         >
           Faça login
         </Link>

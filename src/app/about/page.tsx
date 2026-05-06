@@ -1,8 +1,5 @@
-"use client"
-
-import {Header} from "@/components/header"
-import {Footer} from "@/components/footer"
-import Image from "next/image"
+import { Header } from "@/components/header"
+import { Footer } from "@/components/footer"
 
 const About = () => {
   return (
@@ -13,12 +10,11 @@ const About = () => {
           {/* Banner com imagem de fundo - Versão corrigida */}
           <div className="relative w-full h-[250px] md:h-[368px] flex justify-center items-center overflow-hidden">
             <div className="absolute inset-0 w-full h-full">
-              <Image 
+              <img 
                 src="/img/fundo-about.png" 
                 alt="Fundo" 
-                fill
-                className="object-cover"
-                priority
+                className="absolute inset-0 h-full w-full object-cover"
+                fetchPriority="high"
                 style={{ 
                   objectPosition: 'center 70%',
                   top: '20%' // Desloca 20% para baixo // Ajusta apenas o foco da imagem
@@ -61,32 +57,26 @@ const About = () => {
                   }}>
                   
                   <div className="relative w-full aspect-[4/3]" style={{ gridArea: "img1" }}>
-                    <Image 
+                    <img 
                       src="/img/Group 35.jpg" 
                       alt="Imagem 1" 
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 40vw, 30vw"
+                      className="absolute inset-0 h-full w-full object-cover"
                     />
                   </div>
                   
                   <div className="relative w-full aspect-[4/3]" style={{ gridArea: "img2" }}>
-                    <Image 
+                    <img 
                       src="/img/Group 34.jpg" 
                       alt="Imagem 2" 
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 40vw, 30vw"
+                      className="absolute inset-0 h-full w-full object-cover"
                     />
                   </div>
                   
                   <div className="relative w-full aspect-[4/5] sm:aspect-[3/4]" style={{ gridArea: "img3" }}>
-                    <Image 
+                    <img 
                       src="/img/Group 36.jpg" 
                       alt="Imagem 3" 
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 40vw, 30vw"
+                      className="absolute inset-0 h-full w-full object-cover"
                     />
                   </div>
                 </div>

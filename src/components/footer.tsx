@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 
 export function Footer() {
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading] = React.useState(false);
 
   return (
     <footer className="w-full bg-white text-gray-800 py-10 px-4 shadow-inner">

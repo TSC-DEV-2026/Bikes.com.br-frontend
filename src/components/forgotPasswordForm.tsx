@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +44,7 @@ export function ForgotPasswordForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [countdown, setCountdown] = useState(10);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!emailSent) return;
@@ -56,8 +54,8 @@ export function ForgotPasswordForm() {
       return () => clearTimeout(timer);
     }
 
-    router.push(paths.login());
-  }, [emailSent, countdown, router]);
+    navigate(paths.login());
+  }, [emailSent, countdown, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,7 +1,5 @@
-"use client";
-
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { authFetch } from "@/app/utils/authFetch";
 
 type User = { name: string; email: string };
@@ -9,6 +7,8 @@ type User = { name: string; email: string };
 type AuthContextValue = {
   user: User | null;
   isAuthenticated: boolean;
+  /** Após a primeira validação com `/users/me` (equivale ao hidrato do middleware). */
+  bootstrapped: boolean;
   setUserLocal: (u: User | null) => void;
   refreshMe: () => Promise<User | null>;
   logout: () => Promise<void>;
@@ -39,10 +39,11 @@ function writeCache(user: User | null) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const [user, setUser] = useState<User | null>(() => readCache());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!readCache());
+  const [bootstrapped, setBootstrapped] = useState(false);
 
   const setUserLocal = useCallback((u: User | null) => {
     setUser(u);
@@ -50,13 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     writeCache(u);
   }, []);
 
-  // Busca /users/me (sem redirect aqui; quem protege rota é o middleware)
   const refreshMe = useCallback(async (): Promise<User | null> => {
     try {
-      const res = await authFetch("http://localhost:8000/users/me", {
+      const res = await authFetch("/users/me", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
-        cache: "no-store",
       });
 
       if (!res.ok) throw new Error("unauthorized");
@@ -73,33 +72,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await authFetch("http://localhost:8000/auth/logout", {
+      await authFetch("/auth/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
     } finally {
       setUserLocal(null);
-      router.replace("/login");
+      navigate("/login", { replace: true });
     }
-  }, [router, setUserLocal]);
+  }, [navigate, setUserLocal]);
 
-  // IMPORTANTE: valida UMA vez ao montar.
-  // Isso deixa a navegação rápida (não tem fetch a cada click de Link).
   useEffect(() => {
-    // hidrata do cache (já está no initial state)
-    // valida em background
-    void refreshMe();
+    void refreshMe().finally(() => setBootstrapped(true));
   }, [refreshMe]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated,
+      bootstrapped,
       setUserLocal,
       refreshMe,
       logout,
     }),
-    [user, isAuthenticated, setUserLocal, refreshMe, logout]
+    [user, isAuthenticated, bootstrapped, setUserLocal, refreshMe, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

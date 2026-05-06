@@ -1,13 +1,10 @@
 // app/forgot-password/page.tsx
-"use client";
-
 import { ForgotPasswordForm } from "@/components/forgotPasswordForm";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 
 export default function ForgotPasswordPage() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   return (
     <>
@@ -41,7 +38,7 @@ export default function ForgotPasswordPage() {
                 <ForgotPasswordForm />
                 <div className="mt-4 text-center text-base">
                   <Link 
-                    href="/login" 
+                    to="/login" 
                     className="text-[#2b866c] hover:text-[#0c1b33] font-medium underline underline-offset-4"
                   >
                     Voltar para o login

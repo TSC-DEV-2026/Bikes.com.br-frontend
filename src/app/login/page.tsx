@@ -1,7 +1,5 @@
-"use client";
-
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import { IoEyeSharp, IoEyeOffSharp } from "react-icons/io5";
 import { toast, Toaster } from "sonner";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -25,7 +23,8 @@ export function LoginForm({
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
 
-  const router = useRouter();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refreshMe } = useAuth();
 
   const validateEmail = (email: string) => {
@@ -65,10 +64,12 @@ export function LoginForm({
       });
 
       if (response.status === 200) {
-        // Preenche o contexto imediatamente (isso resolve header só atualizar com refresh)
         await refreshMe();
 
-        router.push("/home");
+        const rawNext = searchParams.get("next");
+        const dest =
+          rawNext && rawNext.startsWith("/") ? rawNext : "/home";
+        navigate(dest, { replace: true });
       }
     } catch (error: any) {
       toast.error("Erro ao fazer login", {
@@ -123,7 +124,7 @@ export function LoginForm({
               Senha
             </Label>
             <Link
-              href="/password"
+              to="/password"
               className="ml-auto text-base font-medium text-[#2b866c] hover:text-[#0c1b33] underline-offset-4 hover:underline"
             >
               Esqueceu sua senha?
@@ -173,9 +174,8 @@ export function LoginForm({
       <div className="text-center text-base">
         Não tem uma conta?{" "}
         <Link
-          href="/register"
+          to="/register"
           className="text-[#2b866c] hover:text-[#0c1b33] font-medium underline underline-offset-4"
-          scroll={false}
         >
           Cadastre-se
         </Link>
@@ -185,7 +185,7 @@ export function LoginForm({
 }
 
 export default function LoginPage() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   return (
     <>

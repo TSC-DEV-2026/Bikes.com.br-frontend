@@ -1,7 +1,5 @@
-"use client"
-
 import { motion, AnimatePresence } from "framer-motion"
-import { usePathname } from "next/navigation"
+import { useLocation } from "react-router-dom"
 
 export const AuthTransitionWrapper = ({ 
   children,
@@ -10,7 +8,7 @@ export const AuthTransitionWrapper = ({
   children: React.ReactNode,
   type?: "form" | "image"
 }) => {
-  const pathname = usePathname()
+  const { pathname } = useLocation()
 
   // Configurações de animação para formulário
   const formAnimation = {

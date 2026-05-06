@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -9,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { IoEyeSharp, IoEyeOffSharp } from "react-icons/io5";
 import { FaRegEdit, FaTrash } from "react-icons/fa";
 import { toast, Toaster } from "sonner";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -66,7 +64,7 @@ interface SavedEndereco {
 }
 
 async function getBackendErrorMessage(response: any): Promise<string> {
-  let backendMessage = `HTTP ${response.status}`;
+  const backendMessage = `HTTP ${response.status}`;
   const contentType = response.headers.get("content-type") || "";
 
   try {
@@ -119,7 +117,7 @@ export default function ProfilePage() {
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [showArrow, setShowArrow] = useState(false);
 
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const scrollToLocations = useCallback(() => {
     const element = document.getElementById("saved-locations");
@@ -251,14 +249,14 @@ export default function ProfilePage() {
         toast.error("Erro ao carregar", {
           description: "Não foi possível carregar seus dados de perfil",
         });
-        router.push(paths.login());
+        navigate(paths.login());
       } finally {
         setIsFetching(false);
       }
     };
 
     fetchData();
-  }, [formatPhone, router]);
+  }, [formatPhone, navigate]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -413,7 +411,7 @@ export default function ProfilePage() {
     [formData]
   );
 
-  const setAsPrimaryAddress = useCallback(
+  const _setAsPrimaryAddress = useCallback(
     async (id: number) => {
       try {
         const response = await userRoutes.setEnderecoPrimary(id);
@@ -794,7 +792,7 @@ export default function ProfilePage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.push(`/editAddress/${e.id}`)}
+                            onClick={() => navigate(`/editAddress/${e.id}`)}
                             className="cursor-pointer"
                           >
                             <FaRegEdit className="size-4" />
@@ -825,7 +823,7 @@ export default function ProfilePage() {
                       <p><strong>Bairro:</strong> {e.bairro}</p>
                       <p><strong>CEP:</strong> {e.cep}</p>
 
-                      {/* opcional: botão p/ setAsPrimaryAddress(e.id) */}
+                      {/* opcional: botão p/ _setAsPrimaryAddress(e.id) */}
                     </div>
                   ))}
                 </div>

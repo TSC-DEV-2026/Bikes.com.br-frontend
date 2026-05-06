@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import {
   FaMagnifyingGlass,
   FaArrowRightToBracket,
@@ -10,14 +8,13 @@ import {
 } from "react-icons/fa6";
 import { Header } from "../../components/header";
 import { Footer } from "../../components/footer";
-import Image from "next/image";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 
 // NOVO: centralização de rotas/endpoints
 import { authFetchRoutes, paths } from "@/app/routes";
 
 const Home = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function renewToken() {
@@ -105,7 +102,7 @@ const Home = () => {
     if (filters.localizacao.trim())
       params.set("localizacao", filters.localizacao.trim());
 
-    router.push(paths.search(params.toString()));
+    navigate(paths.search(params.toString()));
     setShowFilters(false);
   };
 
@@ -151,12 +148,11 @@ const Home = () => {
       <main className="mt-[60px]">
         <section id="home" className="relative max-md:mb-28 md:mb-32">
           <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px]">
-            <Image
+            <img
               src="/img/fundo-home.png"
               alt="Fundo"
-              fill
-              className="object-cover"
-              priority
+              className="absolute inset-0 h-full w-full object-cover"
+              fetchPriority="high"
             />
 
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center px-4">
@@ -476,16 +472,15 @@ const Home = () => {
             <div className="grid grid-cols-3 p-2 sm:gap-5 max-sm:gap-2 w-full max-w-[700px]">
               {cardSection2Data.map((card, index) => (
                 <Link
-                  href={card.link}
+                  to={card.link}
                   key={index}
                   className="w-full h-[120px] sm:h-[160px] mx-auto"
                 >
                   <div className="bg-white rounded-md shadow-md relative gap-3 w-full h-full overflow-hidden">
-                    <Image
+                    <img
                       src={card.image}
                       alt={`Marca ${index + 1}`}
-                      fill
-                      className="object-contain p-3 sm:p-4"
+                      className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
                     />
                   </div>
                 </Link>
@@ -521,11 +516,10 @@ const Home = () => {
                 className="bg-white rounded-md shadow-md w-full max-w-[450px] h-[350px] sm:h-[400px] p-3 sm:p-4 flex flex-col"
               >
                 <div className="relative w-full h-[150px] sm:h-[200px]">
-                  <Image
+                  <img
                     src="/img/highlight.png"
                     alt="Produto destaque"
-                    fill
-                    className="object-contain p-3 sm:p-4"
+                    className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
                   />
                 </div>
                 <div className="flex justify-between items-center mt-3 sm:mt-4">
@@ -559,17 +553,16 @@ const Home = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 justify-center max-w-5xl mx-auto">
               {cardSection4Data.map((card, index) => (
                 <Link
-                  href={card.link}
+                  to={card.link}
                   key={index}
                   className="w-full sm:w-[200px] md:w-[220px] h-[250px] sm:h-[280px] mx-auto"
                 >
                   <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 flex flex-col h-full">
                     <div className="relative flex-1">
-                      <Image
+                      <img
                         src={card.image}
                         alt={card.title}
-                        fill
-                        className="object-contain p-3 sm:p-4"
+                        className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
                       />
                     </div>
                     <h5 className="font-bold text-[#09bc8a] mt-2 text-center truncate text-sm sm:text-base">
@@ -597,11 +590,10 @@ const Home = () => {
                 className="bg-white rounded-md shadow-md w-full max-w-[350px] h-[330px] sm:h-[380px] p-3 sm:p-4 flex flex-col mx-auto"
               >
                 <div className="relative w-full h-[140px] sm:h-[180px]">
-                  <Image
+                  <img
                     src="/img/highlight.png"
                     alt={`Produto ${i + 1}`}
-                    fill
-                    className="object-contain p-3 sm:p-4"
+                    className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
                   />
                 </div>
                 <div className="flex justify-between items-center mt-3 sm:mt-4">
@@ -640,11 +632,10 @@ const Home = () => {
                     className="bg-white rounded-md shadow-md w-full max-w-[350px] h-[330px] sm:h-[380px] p-3 sm:p-4 flex flex-col mx-auto"
                   >
                     <div className="relative w-full h-[140px] sm:h-[180px]">
-                      <Image
+                      <img
                         src="/img/highlight.png"
                         alt={`Produto ${i + 1}`}
-                        fill
-                        className="object-contain p-3 sm:p-4"
+                        className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
                       />
                     </div>
                     <div className="flex justify-between items-center mt-3 sm:mt-4">

@@ -1,14 +1,16 @@
-"use client";
-
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import {
+  useNavigate,
+  useSearchParams,
+  useLocation,
+} from "react-router-dom";
 import { IoEyeSharp, IoEyeOffSharp } from "react-icons/io5";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 
 // NOVO: rotas centralizadas
 import { authRoutes, paths } from "@/app/routes";
@@ -46,9 +48,9 @@ export default function ResetPasswordPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { pathname } = useLocation();
 
   const token = searchParams.get("token");
 
@@ -91,7 +93,7 @@ export default function ResetPasswordPage() {
       });
 
       setTimeout(() => {
-        router.push(paths.login());
+        navigate(paths.login());
       }, ms);
     } catch (error: any) {
       toast.error("Erro ao alterar a senha.", {
@@ -233,7 +235,7 @@ export default function ResetPasswordPage() {
 
                 <div className="mt-4 text-center text-base">
                   <Link
-                    href={paths.login()}
+                    to={paths.login()}
                     className="text-[#2b866c] hover:text-[#0c1b33] font-medium underline underline-offset-4"
                   >
                     Voltar para o login

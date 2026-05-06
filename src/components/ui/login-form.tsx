@@ -1,18 +1,14 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import { IoEyeSharp, IoEyeOffSharp } from "react-icons/io5";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import api from "@/app/utils/axiosInstance";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "@/contexts/auth-context"; // ajuste o caminho conforme seu projeto
+import { useAuth } from "@/contexts/auth-context";
 
 export function LoginForm({
   className,
@@ -26,8 +22,9 @@ export function LoginForm({
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
 
-  const router = useRouter();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { refreshMe } = useAuth();
 
   const validateEmail = (email: string) => {
     if (!email) return "O e-mail é obrigatório";
@@ -71,8 +68,11 @@ export function LoginForm({
       });
 
       if (response.status === 200) {
-        // Navega após login bem-sucedido
-        router.replace("/home");
+        await refreshMe();
+        const rawNext = searchParams.get("next");
+        const dest =
+          rawNext && rawNext.startsWith("/") ? rawNext : "/home";
+        navigate(dest, { replace: true });
       }
     } catch (error: any) {
       toast.error("Erro ao fazer login", {
@@ -127,7 +127,7 @@ export function LoginForm({
               Senha
             </Label>
             <Link
-              href="/password"
+              to="/password"
               className="ml-auto text-base font-medium text-[#2b866c] hover:text-[#0c1b33] underline-offset-4 hover:underline"
             >
               Esqueceu sua senha?
@@ -177,86 +177,12 @@ export function LoginForm({
       <div className="text-center text-base">
         Não tem uma conta?{" "}
         <Link
-          href="/register"
+          to="/register"
           className="text-[#2b866c] hover:text-[#0c1b33] font-medium underline underline-offset-4"
-          scroll={false}
         >
           Cadastre-se
         </Link>
       </div>
     </form>
-  );
-}
-
-export default function LoginPage() {
-  const pathname = usePathname();
-
-  return (
-    <>
-      <div className="fixed inset-0 -z-10 lg:hidden">
-        <img
-          src="/img/fundo-cadastro.jpg"
-          alt="Imagem de fundo"
-          className="h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-[#09bc8a]/50"></div>
-      </div>
-
-      <div className="grid min-h-svh lg:grid-cols-2">
-        <div className="flex flex-col gap-6 p-8 md:p-10 bg-white lg:bg-transparent rounded-xl lg:rounded-none shadow-xl lg:shadow-none mx-auto my-4 lg:my-0 max-w-sm lg:max-w-none">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={pathname}
-              initial={{ x: "100%", opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: "-100%", opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
-              className="flex flex-1 items-center justify-center"
-            >
-              <div className="w-full max-w-sm">
-                <LoginForm />
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        <div className="relative hidden lg:block overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={pathname}
-              initial={{ x: "-100%", opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: "100%", opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
-              className="absolute inset-0"
-            >
-              <img
-                src="/img/fundo-cadastro.jpg"
-                alt="Imagem de fundo"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-[#09bc8a]/50"></div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        <div className="fixed top-4 right-0 z-50 max-w-[calc(100%-32px)] flex justify-end">
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              unstyled: true,
-              classNames: {
-                title: "font-bold text-sm",
-                description: "text-sm",
-                toast:
-                  "flex items-center p-4 rounded-md shadow-lg gap-4 max-w-[320px]",
-                error: "bg-red-400 text-white",
-                success: "bg-green-400 text-white",
-              },
-            }}
-          />
-        </div>
-      </div>
-    </>
   );
 }

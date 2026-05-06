@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useNavigate, useParams } from "react-router-dom";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Input } from "@/components/ui/input";
@@ -42,7 +40,7 @@ interface Cidade {
 }
 
 async function getBackendErrorMessage(response: Response | any): Promise<string> {
-  let backendMessage = `HTTP ${response.status}`;
+  const backendMessage = `HTTP ${response.status}`;
   const contentType = response.headers?.get("content-type") || "";
 
   try {
@@ -92,7 +90,7 @@ export default function EditEnderecoPage() {
   const idParam = (params as any)?.id; // Next pode retornar string|string[]
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
 
-  const router = useRouter();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -202,7 +200,7 @@ export default function EditEnderecoPage() {
       toast.error("Endereço inválido", {
         description: "O ID do endereço não foi especificado",
       });
-      router.push(paths.user());
+      navigate(paths.user());
       return;
     }
 
@@ -251,7 +249,7 @@ export default function EditEnderecoPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id, router, loadCidades, estados]);
+  }, [id, navigate, loadCidades, estados]);
 
   useEffect(() => {
     loadEndereco();
@@ -332,7 +330,7 @@ export default function EditEnderecoPage() {
       }
 
       toast.success("Endereço atualizado com sucesso!");
-      router.push(paths.user());
+      navigate(paths.user());
     } catch (error: any) {
       console.error("[ERROR] Erro ao atualizar endereço:", error);
       toast.error("Falha ao atualizar endereço", {
@@ -361,7 +359,7 @@ export default function EditEnderecoPage() {
             <Button onClick={() => window.location.reload()} variant="outline">
               Tentar novamente
             </Button>
-            <Button onClick={() => router.push(paths.user())}>
+            <Button onClick={() => navigate(paths.user())}>
               Voltar
             </Button>
           </div>
@@ -523,7 +521,7 @@ export default function EditEnderecoPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push(paths.user())}
+                onClick={() => navigate(paths.user())}
                 className="flex-1"
               >
                 Cancelar

@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -8,9 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { FaArrowDown } from "react-icons/fa";
 import { FaRegEdit, FaTrash } from "react-icons/fa";
-import Image from "next/image";
 import { toast, Toaster } from "sonner";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -90,12 +87,12 @@ export default function ProfilePage() {
   const [countries, setCountries] = useState<País[]>([]);
   const [states, setStates] = useState<Estado[]>([]);
   const [cities, setCities] = useState<Cidade[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [showArrow, setShowArrow] = useState(false);
 
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const scrollToLocations = () => {
     const element = document.getElementById("saved-locations");
@@ -212,16 +209,16 @@ export default function ProfilePage() {
         toast.error("Erro ao carregar", {
           description: "Não foi possível carregar seus dados de perfil",
         });
-        router.push(paths.login());
+        navigate(paths.login());
       } finally {
         setIsFetching(false);
       }
     };
 
     fetchData();
-  }, [router]);
+  }, [navigate]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const _handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const formatted = name === "telefone" ? formatPhone(value) : value;
     setFormData((prev) => ({ ...prev, [name]: formatted }));
@@ -325,7 +322,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const _handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setIsLoading(true);
 
@@ -386,7 +383,7 @@ export default function ProfilePage() {
 };
 
 
-  const setAsPrimaryAddress = async (id: number) => {
+  const _setAsPrimaryAddress = async (id: number) => {
     try {
       const response = await userRoutes.setEnderecoPrimary(id);
 
@@ -471,7 +468,7 @@ export default function ProfilePage() {
         <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
           <div className="flex flex-col items-center justify-center gap-4 mb-8 md:mb-10">
             <div className="w-24 h-24 md:w-32 md:h-32 relative rounded-full overflow-hidden shadow-md">
-              <Image src="/img/perfil-placeholder.png" alt="Foto de perfil" fill className="object-cover" />
+              <img src="/img/user.png" alt="Foto de perfil" className="absolute inset-0 h-full w-full object-cover" />
             </div>
             <p className="text-lg md:text-xl font-semibold">{formData.nome}</p>
             <Button variant="outline" className="text-sm md:text-base cursor-pointer">
@@ -651,7 +648,7 @@ export default function ProfilePage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(paths.editAddress(e.id))}
+                          onClick={() => navigate(paths.editAddress(e.id))}
                           className="cursor-pointer"
                         >
                           <FaRegEdit className="size-4" />
@@ -682,7 +679,7 @@ export default function ProfilePage() {
                     <p><strong>Bairro:</strong> {e.bairro}</p>
                     <p><strong>CEP:</strong> {e.cep}</p>
 
-                    {/* Se você quiser expor "definir primário" na UI, pode adicionar um botão chamando setAsPrimaryAddress(e.id) */}
+                    {/* Se você quiser expor "definir primário" na UI, pode adicionar um botão chamando _setAsPrimaryAddress(e.id) */}
                   </div>
                 ))}
               </div>
