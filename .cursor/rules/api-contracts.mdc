@@ -1,0 +1,35 @@
+---
+alwaysApply: false
+---
+
+# API — contratos e uso seguro
+
+## Quando usar
+
+Alterar chamadas ao backend, cliente HTTP, refresh de sessão ou módulos em **`src/api/endpoints`**.
+
+## Escopo permitido
+
+- Ajustes **autorizados** a URLs/payloads; centralizar chamadas novas em **`endpoints/`** quando fizer sentido.
+- Manter **`paths.ts`** como helpers de **navegação da SPA** (não confundir com `<Route>`).
+
+## Camadas (referência)
+
+1. **`axiosInstance`** — `baseURL` via `getApiBaseUrl()` / `VITE_API_URL`, `withCredentials`, JSON.
+2. **`authFetch`** — usa Axios; em **401** tenta **`POST /auth/refresh-token`** uma vez e repete o pedido.
+3. **`endpoints/`** — funções por domínio; barrel **`index.ts`** exporta `authRoutes`, `userRoutes`, etc., e **`paths`**.
+
+## Proibido
+
+- Alterar endpoints, headers ou formatos **sem autorização**.
+- Mudar **`withCredentials`** ou semântica de sessão em **`axiosInstance`/`authFetch`** sem revisão explícita.
+- Espalhar **`axios.request`/`fetch`** nas páginas ignorando funções já existentes em **`endpoints/`**.
+
+## Padrões obrigatórios
+
+- Respeitar tratamento de erro/toast **por fluxo** já existente (sem camada global única imposta).
+- Mudanças em **`authFetch`** ou **`AuthProvider`**: validar login, logout, refresh e rotas protegidas.
+
+## Validação
+
+Após tocar em **`api/`**, **`lib/env.ts`** ou endpoints: **`npm run build`** e teste manual de auth se aplicável.

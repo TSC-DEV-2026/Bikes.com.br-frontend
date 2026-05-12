@@ -1,0 +1,34 @@
+---
+alwaysApply: false
+---
+
+# Projeto — regras gerais (frontend)
+
+SPA **React + Vite + TypeScript**; **`src/app` não existe e não deve voltar.**
+
+## Quando usar
+
+Tarefas genéricas no frontend (estrutura, imports, rotas, API) antes de editar código — alinha escopo e evita regressões da migração Next.js.
+
+## Escopo permitido
+
+- Alterar apenas o necessário ao pedido; seguir `docs/frontend.md` (índice) e `docs/file-map.md`.
+- Sugerir ou executar validação após mudanças relevantes (ver **Validação**).
+
+## Proibido
+
+- Recriar **`src/app`** ou imports estilo App Router do Next.
+- Usar alias **`@/app`**.
+- Mudar contratos de API, payloads ou URLs de backend **sem autorização explícita**.
+- Alterar auth ou composição de **`Providers`** sem necessidade clara e revisão humana.
+- Renomear **`path`** em `app-routes.tsx` ou remover páginas sem pedido explícito.
+- Introduzir tecnologias que o **`package.json`** não liste.
+
+## Padrões obrigatórios
+
+- Respeitar pastas atuais (`pages`, `routes`, `api`, `endpoints`, etc.).
+- Diff mínimo: sem refatoração “de brinde”.
+
+## Validação
+
+Após alterações em imports, rotas ou cliente HTTP: **`npm run build`** e **`npm run lint`**.

@@ -7,37 +7,8 @@ import { Label } from "@/components/ui/label";
 import { FiMail, FiClock } from "react-icons/fi";
 
 // NOVO: rotas centralizadas
-import { authRoutes, paths } from "@/app/routes";
-
-function extractAxiosErrorMessage(err: any): string {
-  // Axios costuma ter err.response.data
-  const data = err?.response?.data;
-
-  if (!data) return err?.message || "Tente novamente mais tarde.";
-
-  // FastAPI: { detail: "..." } ou { detail: [...] }
-  if (typeof data?.detail === "string") return data.detail;
-  if (data?.detail) {
-    try {
-      return JSON.stringify(data.detail);
-    } catch {
-      return "Erro ao processar resposta do servidor.";
-    }
-  }
-
-  // Outras APIs: { message: "..." }
-  if (typeof data?.message === "string") return data.message;
-
-  // Se vier texto puro
-  if (typeof data === "string") return data;
-
-  // Fallback genérico
-  try {
-    return JSON.stringify(data);
-  } catch {
-    return "Tente novamente mais tarde.";
-  }
-}
+import { authRoutes, paths } from "@/api/endpoints";
+import { getAxiosErrorMessage } from "@/lib/api-error";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -66,9 +37,12 @@ export function ForgotPasswordForm() {
 
       toast.success("E-mail enviado com sucesso!");
       setEmailSent(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Erro ao enviar e-mail", {
-        description: extractAxiosErrorMessage(error),
+        description: getAxiosErrorMessage(
+          error,
+          "Não foi possível solicitar a recuperação (verifique se o endpoint existe no backend)."
+        ),
       });
     } finally {
       setIsLoading(false);

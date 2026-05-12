@@ -1,0 +1,40 @@
+---
+alwaysApply: false
+---
+
+# Arquitetura frontend — pastas e camadas
+
+## Quando usar
+
+Criar ou mover páginas, rotas, componentes, API ou estilos — define **onde** cada coisa vive.
+
+## Escopo permitido
+
+Mudanças que respeitam a tabela abaixo e a raiz: `main.tsx` (Router + Providers + CSS), `App.tsx` (`NavigationEffects` + `AppRoutes`).
+
+| Área | Pasta | Uso |
+|------|--------|-----|
+| Páginas | `src/pages/**` | `*-page.tsx` por área |
+| Rotas visuais | `src/routes/app-routes.tsx` | Só `<Routes>` / `<Route>` |
+| HTTP base | `src/api/` | `axiosInstance.ts`, `authFetch.ts` |
+| HTTP por domínio | `src/api/endpoints/` | `*.routes.ts`, `paths.ts`, `index.ts` |
+| UI compartilhada | `src/components/` | `ui/` = primitivas |
+| Estado global | `src/contexts/` | ex.: auth |
+| Estilos globais | `src/styles/` | `globals.css` |
+| Providers raiz | `src/providers.tsx` | usado em `main.tsx` |
+
+## Proibido
+
+- Colocar clientes HTTP soltos em **`src/pages`** quando já existe função em **`endpoints/`**.
+- Misturar **paths da SPA** (`endpoints/paths.ts`) com **paths** do `<Route>` sem critério.
+- Criar pastas “services” ou recriar **`src/app`** sem alinhamento.
+
+## Padrões obrigatórios
+
+- **Página**: compõe a tela; chama API via **`@/api/endpoints`** (ou context), não duplicar camada em todo ficheiro.
+- **Componente**: reutilizável; evitar ficheiros monolíticos sem pedido de refactor.
+- Detalhes de contratos HTTP: ver **`api-contracts.mdc`**.
+
+## Validação
+
+Após mover ficheiros ou alterar imports de pasta: **`npm run build`** e **`npm run lint`**.

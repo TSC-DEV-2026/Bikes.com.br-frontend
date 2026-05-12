@@ -1,12 +1,16 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import { IoEyeSharp, IoEyeOffSharp } from "react-icons/io5";
+import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/auth-context";
+
+// IMPORT NOVO: usa as rotas/funções centralizadas
 import { authRoutes } from "@/api/endpoints";
 import { getAxiosErrorMessage } from "@/lib/api-error";
 import { notifyError, notifySuccess } from "@/lib/toast";
@@ -15,10 +19,7 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"form">) {
-  const [formData, setFormData] = useState({
-    email: "",
-    senha: "",
-  });
+  const [formData, setFormData] = useState({ email: "", senha: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
@@ -37,16 +38,11 @@ export function LoginForm({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    if (name === "email") {
-      setEmailError(validateEmail(value));
-    }
+    if (name === "email") setEmailError(validateEmail(value));
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (e.target.name === "email") {
-      setEmailError(validateEmail(e.target.value));
-    }
+    if (e.target.name === "email") setEmailError(validateEmail(e.target.value));
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -54,7 +50,6 @@ export function LoginForm({
 
     const emailValidation = validateEmail(formData.email);
     setEmailError(emailValidation);
-
     if (emailValidation) {
       notifyError("Corrija os erros antes de continuar");
       return;
@@ -63,6 +58,7 @@ export function LoginForm({
     setIsLoading(true);
 
     try {
+      // ALTERAÇÃO: chamada centralizada via routes
       const response = await authRoutes.login({
         email: formData.email,
         senha: formData.senha,
@@ -71,6 +67,7 @@ export function LoginForm({
       if (response.status === 200) {
         await refreshMe();
         notifySuccess("Login realizado com sucesso!");
+
         const rawNext = searchParams.get("next");
         const dest = rawNext && rawNext.startsWith("/") && rawNext !== "/" ? rawNext : "/home";
         navigate(dest, { replace: true });
@@ -92,7 +89,7 @@ export function LoginForm({
       {...props}
     >
       <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-2xl font-bold text-gray-800">Faça seu login!</h1>
+        <h1 className="text-2xl font-extrabold text-gray-800">Faça seu login</h1>
         <p className="text-base text-gray-600">
           Entre com seu e-mail e senha para acessar sua conta.
         </p>
@@ -165,7 +162,7 @@ export function LoginForm({
           disabled={isLoading}
         >
           {isLoading ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
           ) : (
             <>
               Entrar <FaArrowRightToBracket className="ml-2" size={18} />
@@ -184,5 +181,62 @@ export function LoginForm({
         </Link>
       </div>
     </form>
+  );
+}
+
+export default function LoginPage() {
+  const { pathname } = useLocation();
+
+  return (
+    <>
+      <div className="fixed inset-0 -z-10 lg:hidden">
+        <img
+          src="/img/fundo-cadastro.jpg"
+          alt="Imagem de fundo"
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-[#09bc8a]/50"></div>
+      </div>
+
+      <div className="grid min-h-svh lg:grid-cols-2">
+        <div className="flex flex-col gap-6 p-8 md:p-10 bg-white lg:bg-transparent rounded-xl lg:rounded-none shadow-xl lg:shadow-none mx-auto my-4 lg:my-0 max-w-sm lg:max-w-none">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={pathname}
+              initial={{ x: "100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "-100%", opacity: 0 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
+              className="flex flex-1 items-center justify-center"
+            >
+              <div className="w-full max-w-sm">
+                <LoginForm />
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <div className="relative hidden lg:block overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={pathname}
+              initial={{ x: "-100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "100%", opacity: 0 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
+              className="absolute inset-0"
+            >
+              <img
+                src="/img/fundo-cadastro.jpg"
+                alt="Imagem de fundo"
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-[#09bc8a]/50"></div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+      </div>
+    </>
   );
 }

@@ -1,13 +1,17 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { authFetch } from "@/app/utils/authFetch";
+import { isAxiosError } from "axios";
+import { authFetch } from "@/api/authFetch";
+import { authRoutes } from "@/api/endpoints";
+import { notifySuccess } from "@/lib/toast";
 
 type User = { name: string; email: string };
 
 type AuthContextValue = {
   user: User | null;
   isAuthenticated: boolean;
-  /** Após a primeira validação com `/users/me` (equivale ao hidrato do middleware). */
+  isLoggingOut: boolean;
+  /** Após a primeira validação com `/auth/me`. */
   bootstrapped: boolean;
   setUserLocal: (u: User | null) => void;
   refreshMe: () => Promise<User | null>;
@@ -18,21 +22,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const CACHE_KEY = "auth.user.cache.v1";
 
-function readCache(): User | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
-  } catch {
-    return null;
-  }
-}
-
 function writeCache(user: User | null) {
   if (typeof window === "undefined") return;
   try {
-    if (!user) sessionStorage.removeItem(CACHE_KEY);
-    else sessionStorage.setItem(CACHE_KEY, JSON.stringify(user));
+    if (!user) localStorage.removeItem(CACHE_KEY);
+    else localStorage.setItem(CACHE_KEY, JSON.stringify(user));
   } catch {
     // ignore
   }
@@ -41,8 +35,10 @@ function writeCache(user: User | null) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState<User | null>(() => readCache());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!readCache());
+  /** Sem hidratar a partir do cache: só estado confirmado pelo `/auth/me` (ou fluxo pós-login). */
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
 
   const setUserLocal = useCallback((u: User | null) => {
@@ -53,32 +49,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshMe = useCallback(async (): Promise<User | null> => {
     try {
-      const res = await authFetch("/users/me", {
+      const res = await authFetch("/auth/me", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
 
-      if (!res.ok) throw new Error("unauthorized");
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          setUserLocal(null);
+        }
+        return null;
+      }
 
-      const data = await res.json();
-      const u: User = { name: data.nome, email: data.email };
+      const data = (await res.json()) as Record<string, unknown>;
+      const pessoa = data?.pessoa as Record<string, unknown> | undefined;
+      const u: User = {
+        name:
+          (typeof pessoa?.nome_completo === "string" ? pessoa.nome_completo : null) ??
+          (typeof data?.nome === "string" ? data.nome : null) ??
+          (typeof data?.name === "string" ? data.name : null) ??
+          "",
+        email: typeof data?.email === "string" ? data.email : "",
+      };
       setUserLocal(u);
       return u;
-    } catch {
+    } catch (e: unknown) {
+      if (isAxiosError(e)) {
+        const status = e.response?.status;
+        if (status === 401 || status === 403) {
+          setUserLocal(null);
+          return null;
+        }
+        if (!e.response) {
+          setUserLocal(null);
+          return null;
+        }
+      }
       setUserLocal(null);
       return null;
     }
   }, [setUserLocal]);
 
   const logout = useCallback(async () => {
+    setIsLoggingOut(true);
     try {
-      await authFetch("/auth/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      await authRoutes.logout();
+    } catch {
+      // Idempotente: backend pode responder 401 se cookie já expirou.
     } finally {
       setUserLocal(null);
-      navigate("/login", { replace: true });
+      notifySuccess("Você saiu da sua conta.");
+      navigate("/", { replace: true });
+      // Libera os redirects automáticos somente depois do redirect para `/`.
+      // (evita corrida: /home -> /login quando auth cai no meio do logout)
+      queueMicrotask(() => setIsLoggingOut(false));
     }
   }, [navigate, setUserLocal]);
 
@@ -90,12 +114,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isAuthenticated,
+      isLoggingOut,
       bootstrapped,
       setUserLocal,
       refreshMe,
       logout,
     }),
-    [user, isAuthenticated, bootstrapped, setUserLocal, refreshMe, logout]
+    [user, isAuthenticated, isLoggingOut, bootstrapped, setUserLocal, refreshMe, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

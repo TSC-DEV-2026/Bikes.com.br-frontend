@@ -1,0 +1,31 @@
+---
+alwaysApply: false
+---
+
+# Design system — UI e estilo no repo
+
+## Quando usar
+
+Novos componentes visuais, formulários, layouts ou alteração de classes Tailwind.
+
+## Escopo permitido
+
+- Reutilizar **`src/components/ui/`** (shadcn/Radix) + **Tailwind**; ícones conforme **`components.json`** (lucide para peças shadcn).
+- **`globals.css`**: variáveis `:root`/`.dark`; **`tailwind.config.cjs`**: `darkMode: ["class"]`, tokens semânticos.
+
+## Proibido
+
+- Criar primitivas novas quando já existe equivalente em **`ui/`**.
+- Remover **`aria-*`**, foco ou handlers de acessibilidade sem motivo.
+- Alterar breakpoints/responsividade existentes sem pedido explícito.
+
+## Padrões obrigatórios
+
+- Marca recorrente nas telas: **`#09bc8a`**, **`#0c1b33`**, gradientes entre ambos onde o padrão já existe.
+- Formulários: **Label + Input + Button** do kit; seguir validação/máscaras da página em causa.
+- Modais/drawers: preferir **`sheet`** / padrões em **`ui/`**.
+- **`ThemeProvider`** (`next-themes`) **não está na raiz em `src/`** — não assumir toggle global de tema; variantes **`dark:`** só se a classe **`dark`** estiver no DOM.
+
+## Validação
+
+Alterações visuais grandes: **`npm run build`**; smoke na rota afetada no browser.

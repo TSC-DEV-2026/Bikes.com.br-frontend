@@ -4,8 +4,13 @@ import { useAuth } from "@/contexts/auth-context";
 
 const PUBLIC_PATHS = new Set([
   "/",
-  "/home",
   "/about",
+  "/enterprise",
+  "/cart",
+  // `/home` é a rota "logada", mas quando deslogado ela já renderiza a landing;
+  // tratá-la como pública evita corrida no logout ("/home" -> "/login") e permite
+  // o redirect explícito do logout para `/`.
+  "/home",
   "/login",
   "/register",
   "/password",
@@ -26,10 +31,11 @@ export function NavigationEffects() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, bootstrapped } = useAuth();
+  const { isAuthenticated, isLoggingOut, bootstrapped } = useAuth();
 
   useEffect(() => {
     if (!bootstrapped) return;
+    if (isLoggingOut) return;
 
     const pathname = location.pathname;
 
@@ -38,11 +44,12 @@ export function NavigationEffects() {
       return;
     }
 
-    const onAuthOnlyPath =
-      ["/login", "/register", "/password"].includes(pathname) ||
-      pathname.startsWith("/resetPassword");
+    if (isAuthenticated && pathname === "/") {
+      navigate("/home", { replace: true });
+      return;
+    }
 
-    if (isAuthenticated && onAuthOnlyPath) {
+    if (isAuthenticated && ["/login", "/register"].includes(pathname)) {
       navigate("/home", { replace: true });
       return;
     }
@@ -54,6 +61,7 @@ export function NavigationEffects() {
   }, [
     bootstrapped,
     isAuthenticated,
+    isLoggingOut,
     location.pathname,
     location.search,
     navigate,

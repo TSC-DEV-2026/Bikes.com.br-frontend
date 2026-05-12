@@ -1,0 +1,32 @@
+---
+alwaysApply: false
+---
+
+# Segurança de edição (IA / Cursor)
+
+## Quando usar
+
+Qualquer tarefa automática que possa apagar código, mudar rotas, auth ou tipagem — checklist anti-regressão.
+
+## Escopo permitido
+
+- Editar apenas ficheiros ligados ao pedido.
+- Mudanças incrementais com diff revisável.
+
+## Proibido
+
+- Apagar rotas em **`app-routes.tsx`**, exports usados, ou ficheiros sem necessidade provada.
+- Alterar **`paths`** em **`src/api/endpoints/paths.ts`** sem awareness de redirects/navegação.
+- Remover ou enfraquecer **`NavigationEffects`**, **`AuthProvider`**, **`Providers`**.
+- “Corrigir” **warnings ESLint** antigos quando a tarefa não pediu.
+- Introduzir **`any`** novo para contornar tipos (`strict: true`).
+
+## Padrões obrigatórios
+
+- Preservar **`path`** das `<Route>` e regras públicas/privadas do **`NavigationEffects`**.
+- Preservar fluxo de auth: cache **`sessionStorage`**, **`refreshMe`**, logout → **`/login`**.
+- Manter imports **`@/*` → `src/*`** coerentes.
+
+## Validação
+
+Mudanças em **env**, **`axiosInstance`**, **`authFetch`** ou **endpoints**: **`npm run build`** e, se aplicável, fluxo manual (login/API).
