@@ -8,9 +8,9 @@
     --font-display: "Open Sans", ui-sans-serif, system-ui, sans-serif;
     --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    /* Back-compat (era Geist): manter variáveis antigas sem quebrar referências. */
     --font-geist-sans: var(--font-sans);
     --font-geist-mono: var(--font-mono);
+
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -57,16 +57,27 @@
 
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
 
-  /* Radix Select usa react-remove-scroll no body e some com a barra; reserva o gutter para não “pular” o layout. */
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   html {
-    scrollbar-gutter: stable;
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    overflow-x: hidden;
   }
 
   h1,
@@ -79,11 +90,11 @@
   }
 }
 
-/* Esconde scrollbar mantendo scroll funcional (ex.: lightbox mobile). */
 .hide-scrollbar {
-  -ms-overflow-style: none; /* IE/Edge antigo */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
+
 .hide-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
 }

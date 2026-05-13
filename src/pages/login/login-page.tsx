@@ -69,13 +69,16 @@ export function LoginForm({
         notifySuccess("Login realizado com sucesso!");
 
         const rawNext = searchParams.get("next");
-        const dest = rawNext && rawNext.startsWith("/") && rawNext !== "/" ? rawNext : "/home";
+        const dest =
+          rawNext && rawNext.startsWith("/") && rawNext !== "/"
+            ? rawNext
+            : "/home";
         navigate(dest, { replace: true });
       }
     } catch (error: unknown) {
       notifyError(
         "Erro ao fazer login",
-        getAxiosErrorMessage(error, "Ocorreu um erro ao tentar fazer login.")
+        getAxiosErrorMessage(error, "Ocorreu um erro ao tentar fazer login."),
       );
     } finally {
       setIsLoading(false);
@@ -89,7 +92,9 @@ export function LoginForm({
       {...props}
     >
       <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-2xl font-extrabold text-gray-800">Faça seu login</h1>
+        <h1 className="text-2xl font-extrabold text-gray-800">
+          Faça seu login
+        </h1>
         <p className="text-base text-gray-600">
           Entre com seu e-mail e senha para acessar sua conta.
         </p>
@@ -235,7 +240,6 @@ export default function LoginPage() {
             </motion.div>
           </AnimatePresence>
         </div>
-
       </div>
     </>
   );

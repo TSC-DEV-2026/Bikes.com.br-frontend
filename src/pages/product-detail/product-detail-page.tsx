@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Heart,
@@ -44,6 +45,7 @@ import {
   type AvaliacaoView,
   type PerguntaView,
   type ProdutoDetalheView,
+  type ProdutoIndexadorView,
 } from "@/types/produto";
 import { favoriteIdsFromListPayload } from "@/types/favorito";
 
@@ -59,6 +61,171 @@ function safeReturnPathFromState(state: unknown): string | null {
     return null;
   }
   return from;
+}
+
+const CARACTERISTICAS_COLLAPSE_AT = 12;
+
+function humanizeTituloGrupoIndexador(campoChave: string): string {
+  const k = campoChave.trim().toLowerCase();
+  if (k === "" || k === "geral") return "Características";
+  return campoChave
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+function rotuloCelulaCampo(item: ProdutoIndexadorView): string {
+  const c = item.campo.trim();
+  if (!c || c.toLowerCase() === "geral") return "";
+  return c.replace(/_/g, " ");
+}
+
+type IndexadorGrupo = {
+  key: string;
+  titulo: string;
+  rows: ProdutoIndexadorView[];
+};
+
+function buildIndexadorGrupos(items: ProdutoIndexadorView[]): IndexadorGrupo[] {
+  const keyFor = (it: ProdutoIndexadorView) =>
+    (it.campo.trim() || "geral").toLowerCase();
+  const order: string[] = [];
+  const map = new Map<string, ProdutoIndexadorView[]>();
+  for (const it of items) {
+    const k = keyFor(it);
+    if (!map.has(k)) {
+      order.push(k);
+      map.set(k, []);
+    }
+    map.get(k)!.push(it);
+  }
+  return order.map((key) => ({
+    key,
+    titulo: humanizeTituloGrupoIndexador(key),
+    rows: map.get(key)!,
+  }));
+}
+
+function usarSubsecoesIndexador(grupos: IndexadorGrupo[]): boolean {
+  return grupos.some((g) => g.rows.length > 1);
+}
+
+function CaracteristicasProdutoTabela({ items }: { items: ProdutoIndexadorView[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const needToggle = items.length > CARACTERISTICAS_COLLAPSE_AT;
+  const { visiveis, grupos } = useMemo(() => {
+    const v =
+      !needToggle || expanded ? items : items.slice(0, CARACTERISTICAS_COLLAPSE_AT);
+    return { visiveis: v, grupos: buildIndexadorGrupos(v) };
+  }, [items, expanded]);
+  const subsecoes = usarSubsecoesIndexador(grupos);
+  const allGeralSemSubsecao =
+    !subsecoes &&
+    visiveis.length > 0 &&
+    visiveis.every(
+      (r) => !r.campo.trim() || r.campo.trim().toLowerCase() === "geral"
+    );
+
+  return (
+    <div className="space-y-8">
+      {subsecoes ? (
+        grupos.map((grupo) => (
+          <div key={grupo.key} className="space-y-3">
+            <h3 className="text-base font-semibold text-foreground">
+              {grupo.titulo}
+            </h3>
+            <div className="overflow-hidden rounded-lg border border-border">
+              {grupo.key === "geral" ? (
+                <ul className="divide-y divide-border" role="list">
+                  {grupo.rows.map((row, i) => (
+                    <li
+                      key={`${row.campo}-${row.valor}-${i}`}
+                      className={
+                        i % 2 === 0
+                          ? "bg-muted/25 px-4 py-3 text-sm text-foreground"
+                          : "bg-background px-4 py-3 text-sm text-foreground"
+                      }
+                    >
+                      {row.valor}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="divide-y divide-border" role="list">
+                  {grupo.rows.map((row, i) => (
+                    <li
+                      key={`${row.campo}-${row.valor}-${i}`}
+                      className={
+                        i % 2 === 0
+                          ? "grid grid-cols-1 gap-1 bg-muted/25 px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
+                          : "grid grid-cols-1 gap-1 bg-background px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
+                      }
+                    >
+                      <span className="font-semibold text-foreground">
+                        {rotuloCelulaCampo(row) || "\u00a0"}
+                      </span>
+                      <span className="text-muted-foreground">{row.valor}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ))
+      ) : allGeralSemSubsecao ? (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <ul className="divide-y divide-border" role="list">
+            {visiveis.map((row, i) => (
+              <li
+                key={`${row.campo}-${row.valor}-${i}`}
+                className={
+                  i % 2 === 0
+                    ? "bg-muted/25 px-4 py-3 text-sm text-foreground"
+                    : "bg-background px-4 py-3 text-sm text-foreground"
+                }
+              >
+                {row.valor}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <ul className="divide-y divide-border" role="list">
+            {visiveis.map((row, i) => (
+              <li
+                key={`${row.campo}-${row.valor}-${i}`}
+                className={
+                  i % 2 === 0
+                    ? "grid grid-cols-1 gap-1 bg-muted/25 px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
+                    : "grid grid-cols-1 gap-1 bg-background px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
+                }
+              >
+                <span className="font-semibold text-foreground">
+                  {rotuloCelulaCampo(row) || "—"}
+                </span>
+                <span className="text-muted-foreground">{row.valor}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {needToggle && (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+        >
+          {expanded ? "Mostrar menos" : "Conferir todas as características"}
+          <ChevronDown
+            className={`size-4 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+        </button>
+      )}
+    </div>
+  );
 }
 
 function friendlyProdutoError(err: unknown): string {
@@ -692,23 +859,12 @@ export default function ProductDetailPage() {
                 id="caracteristicas-heading"
                 className="text-xl font-bold tracking-tight"
               >
-                Características
+                Características do produto
               </h2>
               <Card>
-                <CardContent className="py-10 text-sm leading-relaxed text-muted-foreground">
+                <CardContent className="py-8 text-sm leading-relaxed text-muted-foreground sm:py-10">
                   {produto.indexadores.length > 0 ? (
-                    <ul
-                      className="flex flex-wrap gap-2"
-                      aria-label="Características e termos de busca do produto"
-                    >
-                      {produto.indexadores.map((tag) => (
-                        <li key={tag}>
-                          <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-foreground">
-                            {tag}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    <CaracteristicasProdutoTabela items={produto.indexadores} />
                   ) : (
                     <p>Nenhuma característica foi informada neste anúncio.</p>
                   )}

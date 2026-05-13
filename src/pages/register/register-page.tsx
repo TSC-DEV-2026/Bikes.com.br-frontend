@@ -369,26 +369,26 @@ export default function RegisterPage() {
   }, [deviceType]);
 
   return (
-    <>
+    <div className="relative min-h-dvh w-full overflow-x-clip overscroll-y-none bg-white lg:min-h-svh">
       {(deviceType === "mobile" || deviceType === "tablet") && (
-        <div className="fixed inset-0 -z-10">
+        <div className="fixed inset-0 -z-10 min-h-dvh">
           <img
             src="/img/fundo-cadastro.jpg"
-            alt="Imagem de fundo"
-            className="h-full w-full object-cover"
+            alt=""
+            className="pointer-events-none absolute left-1/2 top-1/2 block h-[103%] w-[103%] max-w-none -translate-x-1/2 -translate-y-1/2 object-cover object-center"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-[#09bc8a]/50"></div>
+          <div className="absolute inset-0 bg-[#09bc8a]/50" aria-hidden />
         </div>
       )}
 
       <div
-        className={`grid min-h-screen ${
-          shouldShowSplitLayout ? "lg:grid-cols-[1fr_1.2fr]" : ""
+        className={`grid min-h-dvh w-full auto-rows-fr grid-cols-1 ${
+          shouldShowSplitLayout ? "lg:min-h-svh lg:grid-cols-[1fr_1.2fr]" : ""
         }`}
       >
         {shouldShowSplitLayout && (
-          <div className="relative hidden lg:block order-first overflow-hidden">
+          <div className="relative order-first isolate hidden min-h-dvh overflow-hidden bg-[#0c1b33] lg:block lg:min-h-0">
             <AnimatePresence mode="wait">
               <motion.div
                 key={pathname}
@@ -402,24 +402,24 @@ export default function RegisterPage() {
                   opacity: 0,
                 }}
                 transition={{ duration: animationDuration, ease: "easeInOut" }}
-                className="absolute inset-0"
+                className="absolute inset-0 overflow-hidden"
               >
                 <img
                   src="/img/fundo-cadastro.jpg"
-                  alt="Imagem de fundo"
-                  className="h-full w-full object-cover"
+                  alt=""
+                  className="pointer-events-none absolute left-1/2 top-1/2 block h-[103%] w-[103%] max-w-none -translate-x-1/2 -translate-y-1/2 object-cover object-center"
                   loading="lazy"
                 />
-                <div className="absolute inset-0 bg-[#09bc8a]/50"></div>
+                <div className="absolute inset-0 bg-[#09bc8a]/50" aria-hidden />
               </motion.div>
             </AnimatePresence>
           </div>
         )}
 
         <div
-          className={`flex flex-col gap-6 p-4 w-full max-w-[95vw] mx-auto my-4 ${
+          className={`order-last mx-auto flex min-h-dvh w-full max-w-[95vw] flex-col gap-6 bg-white p-4 lg:min-h-0 lg:bg-white ${
             shouldShowSplitLayout ? "lg:max-w-2xl lg:p-8" : ""
-          } order-last`}
+          }`}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -554,7 +554,6 @@ export default function RegisterPage() {
           </AnimatePresence>
         </div>
       </div>
-
-    </>
+    </div>
   );
 }

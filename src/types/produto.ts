@@ -49,6 +49,12 @@ export type ProdutoListaView = {
   statusOuCondicao: string | null;
 };
 
+/** Item de `indexadores` no GET público do produto (`{ campo, valor }`). */
+export type ProdutoIndexadorView = {
+  campo: string;
+  valor: string;
+};
+
 /** Visão normalizada para página de detalhe (campos opcionais no contrato real). */
 export type ProdutoDetalheView = {
   id: ProdutoId;
@@ -59,8 +65,8 @@ export type ProdutoDetalheView = {
   status: string | null;
   imagens: string[];
   estoqueTexto: string | null;
-  /** Tags de busca / características (campo `indexadores` da API). */
-  indexadores: string[];
+  /** Indexadores da API: objetos `{ campo, valor }` ou legado `string[]`. */
+  indexadores: ProdutoIndexadorView[];
 };
 
 export type PerguntaView = {
@@ -378,15 +384,36 @@ function extractStatusDetalhe(record: Record<string, unknown>): string | null {
   ]);
 }
 
-function extractIndexadoresDetalhe(record: Record<string, unknown>): string[] {
+function extractIndexadoresDetalhe(record: Record<string, unknown>): ProdutoIndexadorView[] {
   const raw = record.indexadores ?? record.tags ?? record.palavras_chave;
   if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
+  const out: ProdutoIndexadorView[] = [];
+  const seen = new Set<string>();
+
+  const push = (campoRaw: string | null, valorRaw: string) => {
+    const valor = valorRaw.trim();
+    if (!valor) return;
+    const trimmedCampo = campoRaw?.trim();
+    const campo =
+      !trimmedCampo || trimmedCampo.toLowerCase() === "geral" ? "geral" : trimmedCampo;
+    const key = `${campo.toLowerCase()}\0${valor.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ campo, valor });
+  };
+
   for (const el of raw) {
     if (typeof el === "string") {
       const t = el.trim();
-      if (t && !out.includes(t)) out.push(t);
+      if (t) push("geral", t);
+      continue;
     }
+    if (!isRecord(el)) continue;
+    const valor = pickString(el, ["valor", "value", "texto", "tag", "nome", "indexador"]);
+    if (!valor) continue;
+    const campo =
+      pickString(el, ["campo", "grupo", "categoria", "tipo", "chave", "key"]) ?? "geral";
+    push(campo, valor);
   }
   return out;
 }
