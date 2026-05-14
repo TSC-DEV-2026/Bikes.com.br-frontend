@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
+import { useCart } from "@/contexts/cart-context";
 import { useFavoritesCount } from "@/contexts/favorites-count-context";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { RxHamburgerMenu } from "react-icons/rx";
 
 export function Header() {
   const { user, isAuthenticated, logout, bootstrapped } = useAuth();
+  const { totalQuantity } = useCart();
   const { unseenFavoriteCount, favoritesBadgeVisible } = useFavoritesCount();
 
   // FIX: evita mismatch SSR/CSR (hydration)
@@ -43,6 +45,8 @@ export function Header() {
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const showFavoritesBadge = mounted && bootstrapped && favoritesBadgeVisible;
+  const showCartBadge =
+    mounted && bootstrapped && isAuthenticated && totalQuantity > 0;
 
   const homePath = mounted && bootstrapped && isAuthenticated ? "/home" : "/";
 
@@ -68,8 +72,29 @@ export function Header() {
       </nav>
 
       <div className="hidden md:flex items-center space-x-4">
-        <Link to="/produtos" title="Ver produtos">
-          <img src="/img/carrinho.png" alt="Carrinho" width={27} height={27} />
+        <Link
+          to="/carrinho"
+          className="relative inline-block"
+          title={
+            showCartBadge
+              ? `Carrinho: ${totalQuantity} ${totalQuantity === 1 ? "item" : "itens"}`
+              : "Abrir carrinho"
+          }
+          aria-label={
+            showCartBadge
+              ? `Carrinho com ${totalQuantity} ${totalQuantity === 1 ? "item" : "itens"}`
+              : "Abrir carrinho"
+          }
+        >
+          <img src="/img/carrinho.png" alt="" width={27} height={27} aria-hidden />
+          {showCartBadge ? (
+            <span
+              className="absolute -right-2 -top-2 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-yellow-400 px-1 text-[10px] font-bold leading-none text-slate-900 ring-2 ring-white shadow-sm tabular-nums"
+              aria-hidden
+            >
+              {totalQuantity > 99 ? "99+" : totalQuantity}
+            </span>
+          ) : null}
         </Link>
         <Link
           to="/favorites"
@@ -237,13 +262,32 @@ export function Header() {
               </Link>
 
               <Link
-                to="/produtos"
+                to="/carrinho"
                 onClick={closeMobileMenu}
                 className="flex items-center space-x-3 text-lg py-2 hover:bg-gray-100 rounded px-2"
-                title="Ver produtos"
+                title={
+                  showCartBadge
+                    ? `Carrinho: ${totalQuantity} ${totalQuantity === 1 ? "item" : "itens"}`
+                    : "Abrir carrinho"
+                }
+                aria-label={
+                  showCartBadge
+                    ? `Carrinho com ${totalQuantity} ${totalQuantity === 1 ? "item" : "itens"}`
+                    : "Abrir carrinho"
+                }
               >
                 <HiShoppingCart aria-hidden />
-                <span>Carrinho</span>
+                <span className="relative">
+                  Carrinho
+                  {showCartBadge ? (
+                    <span
+                      className="pointer-events-none absolute -right-5 -top-2 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-yellow-400 px-1 text-[9px] font-bold leading-none text-slate-900 ring-2 ring-white shadow-sm tabular-nums"
+                      aria-hidden
+                    >
+                      {totalQuantity > 99 ? "99+" : totalQuantity}
+                    </span>
+                  ) : null}
+                </span>
               </Link>
 
               <Link

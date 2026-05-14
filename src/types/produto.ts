@@ -7,9 +7,13 @@ export type ProdutoListagemItem = {
   categoria_id: number;
   marca_id: number;
   titulo: string;
-  preco: string;
-  preco_promocional: string | null;
+  /** Presente em listagens públicas (ex.: lançamentos) para link amigável. */
+  slug?: string;
+  preco: string | number;
+  preco_promocional: string | number | null;
   imagem_principal_url: string | null;
+  ativo?: boolean;
+  status?: string;
 };
 
 export type ProdutoListagemResponse = {
@@ -402,6 +406,68 @@ function extractIndexadoresDetalhe(record: Record<string, unknown>): ProdutoInde
     out.push({ campo, valor });
   };
 
+  const pickCampoIndexador = (rec: Record<string, unknown>): string | null => {
+    const flat = pickString(rec, [
+      "nome_campo",
+      "nomeCampo",
+      "campo_nome",
+      "campoNome",
+      "label_campo",
+      "titulo_campo",
+      "campo",
+      "grupo",
+      "categoria",
+      "tipo",
+      "chave",
+      "key",
+    ]);
+    if (flat) return flat;
+    const nested = rec.campo ?? rec.field;
+    if (isRecord(nested)) {
+      return pickString(nested, [
+        "nome",
+        "titulo",
+        "label",
+        "descricao",
+        "name",
+        "chave",
+        "key",
+      ]);
+    }
+    return null;
+  };
+
+  const pickValorIndexador = (rec: Record<string, unknown>): string | null => {
+    const flat = pickString(rec, [
+      "nome_valor",
+      "nomeValor",
+      "valor_nome",
+      "valorNome",
+      "label_valor",
+      "titulo_valor",
+      "valor",
+      "value",
+      "texto",
+      "tag",
+      "nome",
+      "indexador",
+    ]);
+    if (flat) return flat;
+    const nested = rec.valor ?? rec.value;
+    if (isRecord(nested)) {
+      return pickString(nested, [
+        "nome",
+        "titulo",
+        "label",
+        "texto",
+        "descricao",
+        "valor",
+        "value",
+      ]);
+    }
+    return null;
+  };
+
   for (const el of raw) {
     if (typeof el === "string") {
       const t = el.trim();
@@ -409,10 +475,9 @@ function extractIndexadoresDetalhe(record: Record<string, unknown>): ProdutoInde
       continue;
     }
     if (!isRecord(el)) continue;
-    const valor = pickString(el, ["valor", "value", "texto", "tag", "nome", "indexador"]);
+    const valor = pickValorIndexador(el);
     if (!valor) continue;
-    const campo =
-      pickString(el, ["campo", "grupo", "categoria", "tipo", "chave", "key"]) ?? "geral";
+    const campo = pickCampoIndexador(el) ?? "geral";
     push(campo, valor);
   }
   return out;

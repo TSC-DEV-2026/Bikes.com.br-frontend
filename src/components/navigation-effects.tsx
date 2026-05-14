@@ -6,7 +6,6 @@ const PUBLIC_PATHS = new Set([
   "/",
   "/about",
   "/enterprise",
-  "/cart",
   // `/home` é a rota "logada", mas quando deslogado ela já renderiza a landing;
   // tratá-la como pública evita corrida no logout ("/home" -> "/login") e permite
   // o redirect explícito do logout para `/`.

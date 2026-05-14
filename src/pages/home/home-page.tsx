@@ -13,15 +13,23 @@ import { Header } from "../../components/header";
 import { Footer } from "../../components/footer";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { listCategorias, listMarcas } from "@/api/endpoints/catalogo.routes";
-import { listProdutos } from "@/api/endpoints/produtos.routes";
+import {
+  listCategorias,
+  listMarcas,
+  type CatalogoOption,
+} from "@/api/endpoints/catalogo.routes";
+import { listLancamentos, listProdutos } from "@/api/endpoints/produtos.routes";
 import {
   addFavorito,
   listFavoritos,
   removeFavorito,
 } from "@/api/endpoints/favoritos.routes";
-import type { ProdutoId, ProdutoListaView } from "@/types/produto";
-import { normalizeProdutosListResponseWithMeta } from "@/types/produto";
+import type { Marca } from "@/types/marca";
+import type { ProdutoId, ProdutoListaView, ProdutoListagemItem } from "@/types/produto";
+import {
+  itemUnknownToListaView,
+  normalizeProdutosListResponseWithMeta,
+} from "@/types/produto";
 import { favoriteIdsFromListPayload } from "@/types/favorito";
 import { produtosSearchFromUserPhrase } from "@/lib/produtos-search";
 import { cn } from "@/lib/utils";
@@ -45,6 +53,56 @@ function friendlyProdutosError(err: unknown): string {
       return "Não foi possível conectar. Verifique sua rede.";
   }
   return "Não foi possível carregar os produtos.";
+}
+
+const LANCAMENTOS_VITRINE_MAX = 4;
+const ESTILO_BIKES_VITRINE_MAX = 6;
+
+function normalizeCategoriaNomeCatalogo(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Escolhe `categoria_id` para `listProdutos` com base nos nomes de `listCategorias()`
+ * (GET /categorias). Sem id fixo de produto.
+ */
+function resolveCategoriaBicicletasId(categorias: CatalogoOption[]): number | null {
+  for (const c of categorias) {
+    const n = normalizeCategoriaNomeCatalogo(c.nome);
+    if (n.includes("bicicleta")) return c.id;
+  }
+  for (const c of categorias) {
+    const n = normalizeCategoriaNomeCatalogo(c.nome);
+    if (n === "bike" || n === "bikes") return c.id;
+  }
+  return null;
+}
+
+function friendlyLancamentosError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status;
+    if (status && status >= 500)
+      return "Não foi possível carregar os lançamentos. Tente de novo mais tarde.";
+    if (!err.response && err.code === "ERR_NETWORK")
+      return "Sem conexão. Verifique sua rede.";
+  }
+  return "Não foi possível carregar os lançamentos.";
+}
+
+/** Header fixo + bloco da busca acima da seção; valor maior “sobe” mais a página (hero + folga visíveis). */
+const HOME_PRODUTOS_SCROLL_TOP_OFFSET_PX = 298;
+
+function scrollHomeProdutosSectionToTop(el: HTMLElement | null) {
+  if (!el) return;
+  const y =
+    el.getBoundingClientRect().top +
+    window.scrollY -
+    HOME_PRODUTOS_SCROLL_TOP_OFFSET_PX;
+  window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
 }
 
 function parsePrecoBRL(text: string | null): number | null {
@@ -144,6 +202,9 @@ const CONDICAO_FILTER_OPTIONS = [
   { value: "seminovo", label: "Seminovo" },
   { value: "usado", label: "Usado" },
 ] as const;
+
+/** Marcas exibidas de primeira na vitrine da home (o restante abre em “Ver mais”). */
+const MARCAS_VITRINE_INICIAL = 6;
 
 /** Estilo “select” shadcn sem `Select` do Radix (evita trava de scroll / sumir barra). */
 function FilterDropdownField({
@@ -294,6 +355,112 @@ function PrecoBusca({
   );
 }
 
+/** Card de produto da busca na home — reutilizado em “Destaque da semana”. */
+function HomeBuscaProdutoCard({
+  p,
+  href,
+  favoriteIds,
+  pendingFavoriteIds,
+  onToggleFavorite,
+}: {
+  p: ProdutoListaView;
+  href: string;
+  favoriteIds: Set<string>;
+  pendingFavoriteIds: Set<string>;
+  onToggleFavorite: (id: ProdutoId) => void;
+}) {
+  const key = String(p.id);
+  const isFav = favoriteIds.has(key);
+  const isFavPending = pendingFavoriteIds.has(key);
+  return (
+    <article className="flex h-full min-h-[360px] flex-col items-center rounded-xl border border-gray-100 bg-white px-4 pb-5 pt-4 text-center shadow-sm">
+      <div className="relative mb-4 w-full">
+        <Link
+          to={href}
+          className="relative flex h-48 w-full items-center justify-center overflow-hidden rounded-lg bg-gray-50 p-4 md:h-52"
+        >
+          {p.imagemUrl ? (
+            <img
+              src={p.imagemUrl}
+              alt=""
+              className="max-h-40 max-w-full object-contain md:max-h-44"
+            />
+          ) : (
+            <FaBicycle className="text-gray-200" aria-hidden size={72} />
+          )}
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => void onToggleFavorite(p.id)}
+          disabled={isFavPending}
+          aria-pressed={isFav}
+          aria-label={
+            isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"
+          }
+          title={
+            isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"
+          }
+          className={cn(
+            "absolute right-2 top-2 inline-flex size-9 items-center justify-center rounded-full border bg-white/95 shadow-sm transition-colors disabled:opacity-60",
+            isFav
+              ? "border-red-200 text-red-500 hover:bg-red-50"
+              : "border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-red-500",
+          )}
+        >
+          {isFavPending ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          ) : (
+            <Heart
+              className={cn("size-4", isFav && "fill-red-500")}
+              aria-hidden
+            />
+          )}
+        </button>
+      </div>
+
+      <div className="flex w-full flex-col items-center gap-2">
+        <Link
+          to={href}
+          className="line-clamp-2 flex min-h-[2.75rem] w-full items-center justify-center font-bold leading-snug text-gray-900 hover:text-[#09bc8a]"
+        >
+          {p.titulo}
+        </Link>
+
+        <PrecoBusca precoTexto={p.precoTexto} className="mt-0" />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => void onToggleFavorite(p.id)}
+        disabled={isFavPending}
+        className={cn(
+          "my-3 min-h-[1rem] text-xs underline underline-offset-2 disabled:opacity-60",
+          isFav
+            ? "text-red-500 hover:text-red-600"
+            : "text-gray-500 hover:text-red-500",
+        )}
+      >
+        {isFavPending
+          ? "Salvando…"
+          : isFav
+            ? "Salvo na lista de desejos"
+            : "Adicione na lista de desejos"}
+      </button>
+
+      <Link
+        to={href}
+        className="mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#09bc8a] to-[#1e272e] py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95"
+      >
+        Compre agora
+        <span className="inline-flex size-6 items-center justify-center rounded-full bg-white/15">
+          <FaArrowRight className="size-3" aria-hidden />
+        </span>
+      </Link>
+    </article>
+  );
+}
+
 const PAGE_SIZE_OPTIONS = [5, 10, 20] as const;
 type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 const DEFAULT_PAGE_SIZE: PageSize = 5;
@@ -301,6 +468,12 @@ const DEFAULT_PAGE_SIZE: PageSize = 5;
 const AuthenticatedHome = () => {
   const { isAuthenticated } = useAuth();
   const { refreshFavoriteCount } = useFavoritesCount();
+
+  const [lancamentos, setLancamentos] = useState<ProdutoListagemItem[]>([]);
+  const [lancamentosStatus, setLancamentosStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [lancamentosError, setLancamentosError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState("tab1");
   const [searchValue, setSearchValue] = useState("");
@@ -406,9 +579,38 @@ const AuthenticatedHome = () => {
     [],
   );
   const [filtroMarcas, setFiltroMarcas] = useState<FiltroSelectOption[]>([]);
+  const [marcasHome, setMarcasHome] = useState<Marca[]>([]);
+  const [failedMarcaLogoIds, setFailedMarcaLogoIds] = useState(
+    () => new Set<number>(),
+  );
+  const [marcasVitrineExpanded, setMarcasVitrineExpanded] = useState(false);
   const [filtroCatalogoStatus, setFiltroCatalogoStatus] = useState<
     "loading" | "ready" | "error"
   >("loading");
+
+  const marcasHomeOrdenadas = useMemo(() => {
+    const byId = new Map<number, Marca>();
+    for (const m of marcasHome) {
+      if (m.ativo === false) continue;
+      if (!byId.has(m.id)) byId.set(m.id, m);
+    }
+    const list = [...byId.values()];
+    list.sort((a, b) => {
+      const la = Boolean(a.logo_url?.trim());
+      const lb = Boolean(b.logo_url?.trim());
+      if (la !== lb) return la ? -1 : 1;
+      return a.nome.localeCompare(b.nome, "pt-BR");
+    });
+    return list;
+  }, [marcasHome]);
+
+  const marcasVitrineVisiveis = useMemo(
+    () =>
+      marcasVitrineExpanded
+        ? marcasHomeOrdenadas
+        : marcasHomeOrdenadas.slice(0, MARCAS_VITRINE_INICIAL),
+    [marcasHomeOrdenadas, marcasVitrineExpanded],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -424,11 +626,13 @@ const AuthenticatedHome = () => {
           cats.map((c) => ({ id: String(c.id), name: c.nome })),
         );
         setFiltroMarcas(marcas.map((m) => ({ id: String(m.id), name: m.nome })));
+        setMarcasHome(marcas);
         setFiltroCatalogoStatus("ready");
       } catch {
         if (!cancelled) {
           setFiltroCategorias([]);
           setFiltroMarcas([]);
+          setMarcasHome([]);
           setFiltroCatalogoStatus("error");
         }
       }
@@ -438,25 +642,31 @@ const AuthenticatedHome = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setLancamentosStatus("loading");
+    setLancamentosError(null);
+    void (async () => {
+      try {
+        const res = await listLancamentos();
+        if (cancelled) return;
+        const raw = Array.isArray(res.data) ? res.data : [];
+        setLancamentos(raw.slice(0, LANCAMENTOS_VITRINE_MAX));
+        setLancamentosStatus("ready");
+      } catch (e) {
+        if (!cancelled) {
+          setLancamentos([]);
+          setLancamentosError(friendlyLancamentosError(e));
+          setLancamentosStatus("error");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [searchParams, setSearchParams] = useSearchParams();
-
-  const cardSection2Data = [
-    { image: "/img/card1.png", link: "/home" },
-    { image: "/img/card2.png", link: "/home" },
-    { image: "/img/card3.png", link: "/home" },
-    { image: "/img/card4.png", link: "/home" },
-    { image: "/img/card5.png", link: "/home" },
-    { image: "/img/card6.png", link: "/home" },
-  ];
-
-  const cardSection4Data = [
-    { image: "/img/style.png", link: "/home", title: "MOUNTAIN BIKE" },
-    { image: "/img/style.png", link: "/home", title: "TRIATHLON" },
-    { image: "/img/style.png", link: "/home", title: "TRIAL" },
-    { image: "/img/style.png", link: "/home", title: "BIKES ANTIGAS" },
-    { image: "/img/style.png", link: "/home", title: "BIKE ELÉTRICA" },
-    { image: "/img/style.png", link: "/home", title: "SPEED" },
-  ];
 
   const activeFiltersCount = useMemo(() => {
     return Object.values(filters).filter((v) => String(v ?? "").trim() !== "")
@@ -475,6 +685,18 @@ const AuthenticatedHome = () => {
   const [totalResultsPages, setTotalResultsPages] = useState(1);
   const [resultsPage, setResultsPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE);
+
+  const [estiloVitrineProdutos, setEstiloVitrineProdutos] = useState<
+    ProdutoListaView[]
+  >([]);
+  const [estiloVitrineStatus, setEstiloVitrineStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [estiloVitrineSemCategoria, setEstiloVitrineSemCategoria] =
+    useState(false);
+  const [estiloVitrineErro, setEstiloVitrineErro] = useState<string | null>(
+    null,
+  );
 
   const runProductQuery = useCallback(async (
     term: string,
@@ -546,6 +768,61 @@ const AuthenticatedHome = () => {
     setSearchValue(q);
     void runProductQuery(q, resultsPage, pageSize);
   }, [searchParams, resultsPage, pageSize, runProductQuery]);
+
+  useEffect(() => {
+    if (filtroCatalogoStatus === "loading") return;
+    if (filtroCatalogoStatus === "error") {
+      setEstiloVitrineProdutos([]);
+      setEstiloVitrineSemCategoria(false);
+      setEstiloVitrineErro(null);
+      setEstiloVitrineStatus("ready");
+      return;
+    }
+
+    let cancelled = false;
+    setEstiloVitrineStatus("loading");
+    setEstiloVitrineErro(null);
+
+    const cats: CatalogoOption[] = filtroCategorias
+      .map((c) => ({
+        id: Number.parseInt(c.id, 10),
+        nome: c.name,
+      }))
+      .filter((c) => Number.isFinite(c.id));
+    const catId = resolveCategoriaBicicletasId(cats);
+
+    if (catId == null) {
+      setEstiloVitrineProdutos([]);
+      setEstiloVitrineSemCategoria(true);
+      setEstiloVitrineStatus("ready");
+      return;
+    }
+    setEstiloVitrineSemCategoria(false);
+
+    void (async () => {
+      try {
+        const res = await listProdutos({
+          categoria_id: catId,
+          ordenacao: "recentes",
+          page: 1,
+          page_size: ESTILO_BIKES_VITRINE_MAX,
+        });
+        if (cancelled) return;
+        const { items } = normalizeProdutosListResponseWithMeta(res.data);
+        setEstiloVitrineProdutos(items.slice(0, ESTILO_BIKES_VITRINE_MAX));
+        setEstiloVitrineStatus("ready");
+      } catch (e) {
+        if (cancelled) return;
+        setEstiloVitrineProdutos([]);
+        setEstiloVitrineErro(friendlyProdutosError(e));
+        setEstiloVitrineStatus("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filtroCatalogoStatus, filtroCategorias]);
 
   const safeResultsPage = Math.min(resultsPage, totalResultsPages);
 
@@ -626,7 +903,24 @@ const AuthenticatedHome = () => {
   }, [showFilters]);
 
   const produtosBuscaInicioRef = useRef<HTMLElement | null>(null);
+  const brandsSectionRef = useRef<HTMLElement | null>(null);
   const skipPaginationScrollRef = useRef(true);
+
+  const handleMarcaVitrineClick = useCallback(
+    (marca: Marca) => {
+      const marcaIdStr = String(marca.id);
+      const nextFilters = { ...filtersRef.current, marca: marcaIdStr };
+      filtersRef.current = nextFilters;
+      setFilters(nextFilters);
+      setResultsPage(1);
+      const q = searchParams.get("search")?.trim() ?? "";
+      void runProductQuery(q, 1, pageSize);
+      requestAnimationFrame(() => {
+        scrollHomeProdutosSectionToTop(produtosBuscaInicioRef.current);
+      });
+    },
+    [pageSize, runProductQuery, searchParams],
+  );
 
   useEffect(() => {
     if (!searchSubmitted) return;
@@ -634,10 +928,7 @@ const AuthenticatedHome = () => {
       skipPaginationScrollRef.current = false;
       return;
     }
-    produtosBuscaInicioRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    scrollHomeProdutosSectionToTop(produtosBuscaInicioRef.current);
   }, [resultsPage, pageSize, searchSubmitted]);
 
   return (
@@ -1017,115 +1308,15 @@ const AuthenticatedHome = () => {
                     <div className="mx-auto grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
                       {produtosPagina.map((p) => {
                         const href = `/produtos/${encodeURIComponent(String(p.id))}`;
-                        const key = String(p.id);
-                        const isFav = favoriteIds.has(key);
-                        const isFavPending = pendingFavoriteIds.has(key);
                         return (
-                          <article
-                            key={key}
-                            className="flex h-full min-h-[360px] flex-col items-center rounded-xl border border-gray-100 bg-white px-4 pb-5 pt-4 text-center shadow-sm"
-                          >
-                            <div className="relative mb-4 w-full">
-                              <Link
-                                to={href}
-                                className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-lg bg-gray-50"
-                              >
-                                {p.imagemUrl ? (
-                                  <img
-                                    src={p.imagemUrl}
-                                    alt=""
-                                    className="h-full w-full object-contain p-2"
-                                  />
-                                ) : (
-                                  <FaBicycle
-                                    className="text-gray-200"
-                                    aria-hidden
-                                    size={72}
-                                  />
-                                )}
-                              </Link>
-
-                              <button
-                                type="button"
-                                onClick={() => void handleToggleFavorite(p.id)}
-                                disabled={isFavPending}
-                                aria-pressed={isFav}
-                                aria-label={
-                                  isFav
-                                    ? "Remover dos favoritos"
-                                    : "Adicionar aos favoritos"
-                                }
-                                title={
-                                  isFav
-                                    ? "Remover dos favoritos"
-                                    : "Adicionar aos favoritos"
-                                }
-                                className={cn(
-                                  "absolute right-2 top-2 inline-flex size-9 items-center justify-center rounded-full border bg-white/95 shadow-sm transition-colors disabled:opacity-60",
-                                  isFav
-                                    ? "border-red-200 text-red-500 hover:bg-red-50"
-                                    : "border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-red-500",
-                                )}
-                              >
-                                {isFavPending ? (
-                                  <Loader2
-                                    className="size-4 animate-spin"
-                                    aria-hidden
-                                  />
-                                ) : (
-                                  <Heart
-                                    className={cn(
-                                      "size-4",
-                                      isFav && "fill-red-500",
-                                    )}
-                                    aria-hidden
-                                  />
-                                )}
-                              </button>
-                            </div>
-
-                            <div className="flex w-full flex-col items-center gap-2">
-                              <Link
-                                to={href}
-                                className="line-clamp-2 flex min-h-[2.75rem] w-full items-center justify-center font-bold leading-snug text-gray-900 hover:text-[#09bc8a]"
-                              >
-                                {p.titulo}
-                              </Link>
-
-                              <PrecoBusca
-                                precoTexto={p.precoTexto}
-                                className="mt-0"
-                              />
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => void handleToggleFavorite(p.id)}
-                              disabled={isFavPending}
-                              className={cn(
-                                "my-3 min-h-[1rem] text-xs underline underline-offset-2 disabled:opacity-60",
-                                isFav
-                                  ? "text-red-500 hover:text-red-600"
-                                  : "text-gray-500 hover:text-red-500",
-                              )}
-                            >
-                              {isFavPending
-                                ? "Salvando…"
-                                : isFav
-                                  ? "Salvo na lista de desejos"
-                                  : "Adicione na lista de desejos"}
-                            </button>
-
-                            <Link
-                              to={href}
-                              className="mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#09bc8a] to-[#1e272e] py-2.5 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95"
-                            >
-                              Compre agora
-                              <span className="inline-flex size-6 items-center justify-center rounded-full bg-white/15">
-                                <FaArrowRight className="size-3" aria-hidden />
-                              </span>
-                            </Link>
-                          </article>
+                          <HomeBuscaProdutoCard
+                            key={String(p.id)}
+                            p={p}
+                            href={href}
+                            favoriteIds={favoriteIds}
+                            pendingFavoriteIds={pendingFavoriteIds}
+                            onToggleFavorite={handleToggleFavorite}
+                          />
                         );
                       })}
                     </div>
@@ -1210,45 +1401,128 @@ const AuthenticatedHome = () => {
         )}
 
         {/* Section 2 */}
-        <section className="mb-10 md:mb-16 px-4 sm:px-5 text-center">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 mt-4 sm:mb-5">
+        <section
+          ref={brandsSectionRef}
+          className="mb-10 md:mb-16 px-4 sm:px-5"
+        >
+          <h1 className="mb-5 mt-4 text-center text-xl font-bold text-gray-800 sm:mb-6 sm:text-2xl">
             Escolha por marca
           </h1>
 
-          {/* FIX: reestruturação para manter JSX balanceado */}
-          <div className="relative flex justify-center">
-            <div className="grid grid-cols-3 p-2 sm:gap-5 max-sm:gap-2 w-full max-w-[700px]">
-              {cardSection2Data.map((card, index) => (
-                <Link
-                  to={card.link}
-                  key={index}
-                  className="w-full h-[120px] sm:h-[160px] mx-auto"
-                >
-                  <div className="bg-white rounded-md shadow-md relative gap-3 w-full h-full overflow-hidden">
-                    <img
-                      src={card.image}
-                      alt={`Marca ${index + 1}`}
-                      className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
-                    />
-                  </div>
-                </Link>
-              ))}
-            </div>
-
-            {/* Anúncio lateral (desktop) */}
+          <div className="mx-auto w-full max-w-[980px]">
             <div
-              className="hidden min-[1230px]:flex ml-6
-                         w-[120px] sm:w-[150px] md:w-[180px] lg:w-[220px]
-                         h-[250px] sm:h-[280px] md:h-[330px] lg:h-[360px]
-                         bg-gray-100 rounded-md shadow-md items-center justify-center"
+              className={cn(
+                "grid w-full gap-5",
+                "min-[1230px]:grid-cols-[minmax(0,700px)_220px] min-[1230px]:items-stretch min-[1230px]:gap-6",
+              )}
             >
-              <h5 className="text-base sm:text-lg font-bold">Anúncio</h5>
-            </div>
-          </div>
+              <div className="mx-auto w-full max-w-[700px] min-[1230px]:mx-0 min-[1230px]:w-full">
+                <div className="grid grid-cols-2 gap-2 p-1 sm:grid-cols-3 sm:gap-4">
+                  {filtroCatalogoStatus === "loading" ? (
+                    <div className="col-span-2 flex min-h-[140px] items-center justify-center gap-2 text-sm text-gray-600 sm:col-span-3 sm:min-h-[168px]">
+                      <Loader2 className="size-5 shrink-0 animate-spin text-[#09bc8a]" />
+                      <span>Carregando marcas…</span>
+                    </div>
+                  ) : filtroCatalogoStatus === "error" ? (
+                    <div className="col-span-2 flex min-h-[140px] items-center justify-center px-2 text-center text-sm text-gray-600 sm:col-span-3 sm:min-h-[168px]">
+                      Não foi possível carregar as marcas.
+                    </div>
+                  ) : marcasHomeOrdenadas.length === 0 ? (
+                    <div className="col-span-2 flex min-h-[140px] items-center justify-center text-sm text-gray-500 sm:col-span-3 sm:min-h-[168px]">
+                      Nenhuma marca disponível no momento.
+                    </div>
+                  ) : (
+                    marcasVitrineVisiveis.map((marca) => {
+                      const showLogo =
+                        Boolean(marca.logo_url?.trim()) &&
+                        !failedMarcaLogoIds.has(marca.id);
+                      const isMarcaSelecionada =
+                        filters.marca === String(marca.id);
+                      return (
+                        <button
+                          type="button"
+                          key={marca.id}
+                          onClick={() => handleMarcaVitrineClick(marca)}
+                          className="group flex min-h-0 w-full min-w-0 text-left"
+                          aria-pressed={isMarcaSelecionada}
+                          aria-label={`Ver produtos da marca ${marca.nome}`}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-36 w-full items-center justify-center rounded-2xl border bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md",
+                              isMarcaSelecionada
+                                ? "border-[#09bc8a] shadow-md ring-2 ring-[#09bc8a]/25"
+                                : "border-slate-100 hover:border-emerald-200",
+                            )}
+                          >
+                            {showLogo ? (
+                              <img
+                                src={marca.logo_url!}
+                                alt={marca.nome}
+                                className="max-h-24 max-w-full object-contain"
+                                loading="lazy"
+                                decoding="async"
+                                onError={() => {
+                                  setFailedMarcaLogoIds((prev) => {
+                                    const next = new Set(prev);
+                                    next.add(marca.id);
+                                    return next;
+                                  });
+                                }}
+                              />
+                            ) : (
+                              <span className="line-clamp-3 px-1 text-center text-sm font-semibold text-slate-700">
+                                {marca.nome}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
 
-          {/* Anúncio (mobile/tablet) */}
-          <div className="min-[1230px]:hidden w-auto h-[120px] mt-6 bg-gray-100 rounded-md shadow-md flex items-center justify-center">
-            <h5 className="text-base font-bold">Anúncio</h5>
+              <aside className="hidden min-h-[200px] min-[1230px]:flex min-[1230px]:w-full flex-col rounded-2xl border border-slate-100 bg-slate-100 shadow-sm">
+                <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-8">
+                  <p className="text-base font-bold text-slate-700 sm:text-lg">
+                    Anúncio
+                  </p>
+                </div>
+              </aside>
+            </div>
+
+            {filtroCatalogoStatus === "ready" &&
+              marcasHomeOrdenadas.length > MARCAS_VITRINE_INICIAL && (
+                <div className="mt-5 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMarcasVitrineExpanded((wasExpanded) => {
+                        if (wasExpanded) {
+                          requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                              scrollHomeProdutosSectionToTop(
+                                brandsSectionRef.current,
+                              );
+                            });
+                          });
+                        }
+                        return !wasExpanded;
+                      })
+                    }
+                    className="text-sm font-semibold text-[#09bc8a] underline-offset-4 transition hover:text-[#0c1b33] hover:underline"
+                  >
+                    {marcasVitrineExpanded
+                      ? "Ver menos marcas"
+                      : "Ver mais marcas"}
+                  </button>
+                </div>
+              )}
+
+            <div className="mt-6 flex h-[120px] w-full items-center justify-center rounded-2xl border border-slate-100 bg-slate-100 shadow-sm min-[1230px]:hidden">
+              <p className="text-base font-bold text-slate-700">Anúncio</p>
+            </div>
           </div>
         </section>
 
@@ -1257,36 +1531,55 @@ const AuthenticatedHome = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-5">
             Destaque da semana
           </h1>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5">
-            {[1, 2].map((_, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-md shadow-md w-full max-w-[450px] h-[350px] sm:h-[400px] p-3 sm:p-4 flex flex-col"
-              >
-                <div className="relative w-full h-[150px] sm:h-[200px]">
-                  <img
-                    src="/img/highlight.png"
-                    alt="Produto destaque"
-                    className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
+
+          {lancamentosStatus === "loading" && (
+            <div className="mx-auto max-w-[1200px]">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+                {Array.from({ length: LANCAMENTOS_VITRINE_MAX }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="min-h-[360px] animate-pulse rounded-xl border border-gray-100 bg-gray-100"
+                    aria-hidden
                   />
-                </div>
-                <div className="flex justify-between items-center mt-3 sm:mt-4">
-                  <h5 className="text-lg sm:text-xl font-bold">
-                    Garmin Edge 530
-                  </h5>
-                  <span className="text-xl sm:text-2xl font-bold text-[#09bc8a]">
-                    R$ 1.299
-                  </span>
-                </div>
-                <a
-                  href="#"
-                  className="mt-3 sm:mt-4 bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] text-white py-2 px-4 rounded font-bold text-center hover:opacity-90 text-sm sm:text-base"
-                >
-                  Adicionar ao carrinho
-                </a>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {lancamentosStatus === "error" && lancamentosError && (
+            <p className="mx-auto max-w-2xl py-4 text-center text-sm text-slate-500">
+              {lancamentosError}
+            </p>
+          )}
+
+          {lancamentosStatus === "ready" && lancamentos.length === 0 && (
+            <p className="mx-auto max-w-2xl py-4 text-center text-sm text-slate-500">
+              Nenhum lançamento disponível no momento.
+            </p>
+          )}
+
+          {lancamentosStatus === "ready" && lancamentos.length > 0 && (
+            <div className="mx-auto max-w-[1200px]">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+                {lancamentos.map((raw) => {
+                  const p = itemUnknownToListaView(raw);
+                  if (!p) return null;
+                  const href = `/produtos/${encodeURIComponent(String(p.id))}`;
+                  return (
+                    <HomeBuscaProdutoCard
+                      key={String(p.id)}
+                      p={p}
+                      href={href}
+                      favoriteIds={favoriteIds}
+                      pendingFavoriteIds={pendingFavoriteIds}
+                      onToggleFavorite={handleToggleFavorite}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="bg-gray-100 h-[150px] sm:h-[220px] w-full max-w-[920px] mx-auto mt-8 sm:mt-10 mb-8 sm:mb-10 rounded-md shadow-md flex items-center justify-center">
             <h5 className="text-base sm:text-lg font-bold">Anúncio</h5>
           </div>
@@ -1294,34 +1587,114 @@ const AuthenticatedHome = () => {
 
         {/* Section 4 - Estilos */}
         <section className="bg-[#09bc8a] py-10 sm:py-16 px-4">
-          <div className="text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-6 sm:mb-10">
-              QUAL O SEU <span className="font-black">ESTILO?</span>
-            </h1>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 justify-center max-w-5xl mx-auto">
-              {cardSection4Data.map((card, index) => (
-                <Link
-                  to={card.link}
-                  key={index}
-                  className="w-full sm:w-[200px] md:w-[220px] h-[250px] sm:h-[280px] mx-auto"
-                >
-                  <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 flex flex-col h-full">
-                    <div className="relative flex-1">
-                      <img
-                        src={card.image}
-                        alt={card.title}
-                        className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
-                      />
-                    </div>
-                    <h5 className="font-bold text-[#09bc8a] mt-2 text-center truncate text-sm sm:text-base">
-                      {card.title}
-                    </h5>
-                    <button className="mt-2 sm:mt-3 bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] text-white py-2 rounded font-bold flex items-center justify-center gap-1 sm:gap-2 hover:opacity-90 text-sm sm:text-base">
-                      Confira <FaArrowRightToBracket />
-                    </button>
-                  </div>
-                </Link>
-              ))}
+          <div className="mx-auto flex w-full max-w-[1100px] flex-col items-center justify-center lg:flex-row lg:items-center">
+            <div className="w-full shrink-0 text-center text-white lg:w-1/3 lg:text-left">
+              <h1 className="mb-6 flex flex-col gap-0.5 sm:mb-10 sm:gap-1 lg:mb-0">
+                <span className="block text-2xl font-light uppercase tracking-wide leading-none md:text-3xl lg:text-4xl">
+                  QUAL O SEU
+                </span>
+                <span className="block text-5xl font-extrabold uppercase leading-none md:text-6xl lg:text-7xl">
+                  ESTILO?
+                </span>
+              </h1>
+            </div>
+            <div className="w-full min-w-0 lg:w-2/3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 justify-items-center lg:pr-3">
+                {filtroCatalogoStatus === "error" && (
+                  <p className="col-span-full max-w-md text-center text-sm font-medium leading-relaxed text-white/95">
+                    Não foi possível carregar o catálogo. Tente atualizar a
+                    página.
+                  </p>
+                )}
+
+                {filtroCatalogoStatus !== "error" &&
+                  (filtroCatalogoStatus === "loading" ||
+                    (filtroCatalogoStatus === "ready" &&
+                      estiloVitrineStatus !== "ready" &&
+                      estiloVitrineStatus !== "error")) && (
+                  <>
+                    {Array.from({ length: ESTILO_BIKES_VITRINE_MAX }).map(
+                      (_, i) => (
+                        <div
+                          key={i}
+                          className="mx-auto h-[250px] w-full animate-pulse rounded-lg bg-white/35 sm:h-[280px] sm:w-[200px] md:w-[220px]"
+                          aria-hidden
+                        />
+                      ),
+                    )}
+                  </>
+                )}
+
+                {filtroCatalogoStatus === "ready" &&
+                  estiloVitrineStatus === "error" &&
+                  estiloVitrineErro && (
+                    <p className="col-span-full max-w-md text-center text-sm font-medium leading-relaxed text-white/95">
+                      {estiloVitrineErro}
+                    </p>
+                  )}
+
+                {filtroCatalogoStatus === "ready" &&
+                  estiloVitrineStatus === "ready" &&
+                  estiloVitrineSemCategoria && (
+                    <p className="col-span-full max-w-md text-center text-sm font-medium leading-relaxed text-white/95">
+                      Nenhuma categoria de bicicletas foi encontrada no catálogo.
+                    </p>
+                  )}
+
+                {filtroCatalogoStatus === "ready" &&
+                  estiloVitrineStatus === "ready" &&
+                  !estiloVitrineSemCategoria &&
+                  estiloVitrineProdutos.length === 0 && (
+                    <p className="col-span-full max-w-md text-center text-sm font-medium leading-relaxed text-white/95">
+                      Nenhuma bicicleta disponível no momento.
+                    </p>
+                  )}
+
+                {filtroCatalogoStatus === "ready" &&
+                  estiloVitrineStatus === "ready" &&
+                  !estiloVitrineSemCategoria &&
+                  estiloVitrineProdutos.length > 0 &&
+                  estiloVitrineProdutos.map((p) => {
+                    const href = `/produtos/${encodeURIComponent(String(p.id))}`;
+                    return (
+                      <Link
+                        to={href}
+                        key={String(p.id)}
+                        className="mx-auto h-[250px] w-full sm:h-[280px] sm:w-[200px] md:w-[220px]"
+                      >
+                        <div className="flex h-full flex-col rounded-lg bg-white p-3 shadow-md sm:p-4">
+                          <div className="relative flex-1">
+                            {p.imagemUrl ? (
+                              <img
+                                src={p.imagemUrl}
+                                alt={p.titulo}
+                                className="absolute inset-0 h-full w-full object-contain p-3 sm:p-4"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+                                <FaBicycle
+                                  className="text-gray-200"
+                                  aria-hidden
+                                  size={64}
+                                />
+                              </div>
+                            )}
+                          </div>
+                          <h5 className="mt-2 truncate text-center text-sm font-bold text-[#09bc8a] sm:text-base">
+                            {p.titulo}
+                          </h5>
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            className="pointer-events-none mt-2 flex items-center justify-center gap-1 rounded bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] py-2 text-sm font-bold text-white hover:opacity-90 sm:mt-3 sm:gap-2 sm:text-base"
+                          >
+                            Confira <FaArrowRightToBracket />
+                          </button>
+                        </div>
+                      </Link>
+                    );
+                  })}
+              </div>
             </div>
           </div>
         </section>

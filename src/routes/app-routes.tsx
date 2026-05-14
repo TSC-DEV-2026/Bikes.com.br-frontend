@@ -16,6 +16,7 @@ import EditAddressPage from "@/pages/edit-address/edit-address-page";
 import ProductsPage from "@/pages/products/products-page";
 import ProductDetailPage from "@/pages/product-detail/product-detail-page";
 import FavoritesPage from "@/pages/favorites/favorites-page";
+import CartPage from "@/pages/cart/cart-page";
 
 /**
  * Sobe a página para o topo a cada mudança de rota.
@@ -72,6 +73,7 @@ export function AppRoutes() {
         <Route path="/produtos" element={<ProductsPage />} />
         <Route path="/produtos/:id" element={<ProductDetailPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/carrinho" element={<CartPage />} />
       </Routes>
     </>
   );

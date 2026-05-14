@@ -26,6 +26,7 @@ import {
   listProdutoPerguntas,
 } from "@/api/endpoints/produtos.routes";
 import { useAuth } from "@/contexts/auth-context";
+import { useCart } from "@/contexts/cart-context";
 import { useFavoritesCount } from "@/contexts/favorites-count-context";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -47,7 +48,12 @@ import {
   type ProdutoDetalheView,
   type ProdutoIndexadorView,
 } from "@/types/produto";
+import { notifyInfo, notifySuccess } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import { favoriteIdsFromListPayload } from "@/types/favorito";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import type { Components } from "react-markdown";
 
 /** Só aceita caminho relativo interno (evita open-redirect). */
 function safeReturnPathFromState(state: unknown): string | null {
@@ -65,6 +71,90 @@ function safeReturnPathFromState(state: unknown): string | null {
 
 const CARACTERISTICAS_COLLAPSE_AT = 12;
 
+/** Markdown seguro (sem HTML bruto); estilo alinhado ao card de descrição. */
+const PRODUTO_DESCRICAO_MARKDOWN_COMPONENTS: Partial<Components> = {
+  h1: ({ children, ...props }) => (
+    <h3
+      className="mb-2 mt-6 text-base font-bold tracking-tight text-foreground first:mt-0"
+      {...props}
+    >
+      {children}
+    </h3>
+  ),
+  h2: ({ children, ...props }) => (
+    <h3
+      className="mb-2 mt-5 text-base font-bold tracking-tight text-foreground first:mt-0"
+      {...props}
+    >
+      {children}
+    </h3>
+  ),
+  h3: ({ children, ...props }) => (
+    <h3
+      className="mb-2 mt-4 text-sm font-bold tracking-tight text-foreground first:mt-0"
+      {...props}
+    >
+      {children}
+    </h3>
+  ),
+  p: ({ children, ...props }) => (
+    <p className="mb-3 leading-relaxed last:mb-0" {...props}>
+      {children}
+    </p>
+  ),
+  strong: ({ children, ...props }) => (
+    <strong className="font-semibold text-foreground" {...props}>
+      {children}
+    </strong>
+  ),
+  em: ({ children, ...props }) => (
+    <em className="italic text-foreground/90" {...props}>
+      {children}
+    </em>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul
+      className="my-3 list-outside list-disc space-y-1.5 pl-4 marker:text-muted-foreground [&>li>p]:m-0 [&>li>p]:inline"
+      {...props}
+    >
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol
+      className="my-3 list-outside list-decimal space-y-1.5 pl-4 marker:text-muted-foreground [&>li>p]:m-0 [&>li>p]:inline"
+      {...props}
+    >
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }) => (
+    <li className="leading-relaxed [&>p+p]:mt-2 [&>p+p]:block" {...props}>
+      {children}
+    </li>
+  ),
+  a: ({ href, children, ...props }) => (
+    <a
+      href={href}
+      className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+      target="_blank"
+      rel="noopener noreferrer"
+      {...props}
+    >
+      {children}
+    </a>
+  ),
+  hr: ({ ...props }) => <hr className="my-6 border-border" {...props} />,
+  blockquote: ({ children, ...props }) => (
+    <blockquote
+      className="my-3 border-l-2 border-primary/35 py-0.5 pl-3 text-muted-foreground"
+      {...props}
+    >
+      {children}
+    </blockquote>
+  ),
+};
+
 function humanizeTituloGrupoIndexador(campoChave: string): string {
   const k = campoChave.trim().toLowerCase();
   if (k === "" || k === "geral") return "Características";
@@ -73,10 +163,13 @@ function humanizeTituloGrupoIndexador(campoChave: string): string {
     .replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
+/** Rótulo exibido na coluna “campo” (inclui `geral` quando a API envia assim). */
 function rotuloCelulaCampo(item: ProdutoIndexadorView): string {
   const c = item.campo.trim();
-  if (!c || c.toLowerCase() === "geral") return "";
-  return c.replace(/_/g, " ");
+  if (!c) return "";
+  return c
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
 type IndexadorGrupo = {
@@ -118,12 +211,11 @@ function CaracteristicasProdutoTabela({ items }: { items: ProdutoIndexadorView[]
     return { visiveis: v, grupos: buildIndexadorGrupos(v) };
   }, [items, expanded]);
   const subsecoes = usarSubsecoesIndexador(grupos);
-  const allGeralSemSubsecao =
-    !subsecoes &&
-    visiveis.length > 0 &&
-    visiveis.every(
-      (r) => !r.campo.trim() || r.campo.trim().toLowerCase() === "geral"
-    );
+
+  const rowLiClass = (i: number) => {
+    const zebra = i % 2 === 0 ? "bg-muted/25" : "bg-background";
+    return `${zebra} grid grid-cols-1 gap-1 px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,30%)_minmax(0,1fr)] sm:items-start sm:gap-x-6 sm:gap-y-1`;
+  };
 
   return (
     <div className="space-y-8">
@@ -134,76 +226,38 @@ function CaracteristicasProdutoTabela({ items }: { items: ProdutoIndexadorView[]
               {grupo.titulo}
             </h3>
             <div className="overflow-hidden rounded-lg border border-border">
-              {grupo.key === "geral" ? (
-                <ul className="divide-y divide-border" role="list">
-                  {grupo.rows.map((row, i) => (
-                    <li
-                      key={`${row.campo}-${row.valor}-${i}`}
-                      className={
-                        i % 2 === 0
-                          ? "bg-muted/25 px-4 py-3 text-sm text-foreground"
-                          : "bg-background px-4 py-3 text-sm text-foreground"
-                      }
-                    >
+              <ul className="divide-y divide-border" role="list">
+                {grupo.rows.map((row, i) => (
+                  <li
+                    key={`${row.campo}-${row.valor}-${i}`}
+                    className={rowLiClass(i)}
+                  >
+                    <span className="min-w-0 font-semibold text-foreground">
+                      {rotuloCelulaCampo(row) || "—"}
+                    </span>
+                    <span className="min-w-0 text-muted-foreground sm:text-right">
                       {row.valor}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <ul className="divide-y divide-border" role="list">
-                  {grupo.rows.map((row, i) => (
-                    <li
-                      key={`${row.campo}-${row.valor}-${i}`}
-                      className={
-                        i % 2 === 0
-                          ? "grid grid-cols-1 gap-1 bg-muted/25 px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
-                          : "grid grid-cols-1 gap-1 bg-background px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
-                      }
-                    >
-                      <span className="font-semibold text-foreground">
-                        {rotuloCelulaCampo(row) || "\u00a0"}
-                      </span>
-                      <span className="text-muted-foreground">{row.valor}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         ))
-      ) : allGeralSemSubsecao ? (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <ul className="divide-y divide-border" role="list">
-            {visiveis.map((row, i) => (
-              <li
-                key={`${row.campo}-${row.valor}-${i}`}
-                className={
-                  i % 2 === 0
-                    ? "bg-muted/25 px-4 py-3 text-sm text-foreground"
-                    : "bg-background px-4 py-3 text-sm text-foreground"
-                }
-              >
-                {row.valor}
-              </li>
-            ))}
-          </ul>
-        </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <ul className="divide-y divide-border" role="list">
             {visiveis.map((row, i) => (
               <li
                 key={`${row.campo}-${row.valor}-${i}`}
-                className={
-                  i % 2 === 0
-                    ? "grid grid-cols-1 gap-1 bg-muted/25 px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
-                    : "grid grid-cols-1 gap-1 bg-background px-4 py-3 text-sm sm:grid-cols-[minmax(8rem,0.42fr)_1fr] sm:gap-6"
-                }
+                className={rowLiClass(i)}
               >
-                <span className="font-semibold text-foreground">
+                <span className="min-w-0 font-semibold text-foreground">
                   {rotuloCelulaCampo(row) || "—"}
                 </span>
-                <span className="text-muted-foreground">{row.valor}</span>
+                <span className="min-w-0 text-muted-foreground sm:text-right">
+                  {row.valor}
+                </span>
               </li>
             ))}
           </ul>
@@ -272,6 +326,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { bootstrapped, isAuthenticated } = useAuth();
   const { refreshFavoriteCount } = useFavoritesCount();
+  const { addItemToCart, addPending } = useCart();
 
   const [produto, setProduto] = useState<ProdutoDetalheView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -281,6 +336,10 @@ export default function ProductDetailPage() {
     status: "idle",
     rows: [],
   });
+  /** Índice da pergunta com resposta visível (accordion: uma por vez). */
+  const [perguntaAbertaIdx, setPerguntaAbertaIdx] = useState<number | null>(
+    null,
+  );
   const [avaliacoes, setAvaliacoes] = useState<ExtraSection<AvaliacaoView>>({
     status: "idle",
     rows: [],
@@ -300,6 +359,7 @@ export default function ProductDetailPage() {
   const [isFavorite, setIsFavorite] = useState<boolean | null>(null);
   const [favActionPending, setFavActionPending] = useState(false);
   const [favMessage, setFavMessage] = useState<string | null>(null);
+  const [cartMessage, setCartMessage] = useState<string | null>(null);
 
   const loginNextHref = `/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
@@ -324,6 +384,7 @@ export default function ProductDetailPage() {
     setLightboxZoom(1);
     setSwipeOffsetX(0);
     setSwipeTransition(false);
+    setPerguntaAbertaIdx(null);
   }, [id]);
 
   const lightboxImageCount = produto?.imagens.length ?? 0;
@@ -402,6 +463,23 @@ export default function ProductDetailPage() {
       cancelled = true;
     };
   }, [bootstrapped, isAuthenticated, produto, id]);
+
+  const handleAddToCart = () => {
+    if (!produto || !isAuthenticated || addPending) return;
+    setCartMessage(null);
+    void (async () => {
+      const result = await addItemToCart(produto.id, 1);
+      if (result.ok) {
+        notifySuccess("Produto adicionado ao carrinho.");
+      } else {
+        setCartMessage(result.message);
+      }
+    })();
+  };
+
+  const handleBuyPlaceholder = () => {
+    notifyInfo("Pagamento em breve", "Estamos preparando o checkout.");
+  };
 
   const handleToggleFavorite = () => {
     if (!produto || !isAuthenticated || favActionPending) return;
@@ -645,18 +723,18 @@ export default function ProductDetailPage() {
           <>
             <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="space-y-4 ">
-                <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border bg-white shadow-sm">
+                <div className="flex h-64 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:h-72 md:h-[420px] lg:h-[460px]">
                   {heroSrc ? (
                     <button
                       type="button"
-                      className="group relative flex size-full items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-[#09bc8a]"
+                      className="group relative flex size-full min-h-0 min-w-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-[#09bc8a]"
                       onClick={() => openLightbox(galleryIndex)}
                       aria-label="Ampliar imagem do produto"
                     >
                       <img
                         src={heroSrc}
                         alt=""
-                        className="h-full w-full object-contain transition duration-200 group-hover:scale-[1.02]"
+                        className="max-h-56 w-full max-w-full object-contain transition duration-200 group-hover:scale-[1.02] sm:max-h-64 md:max-h-[380px] lg:max-h-[420px]"
                         decoding="async"
                       />
                       <span className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-2 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100">
@@ -701,44 +779,115 @@ export default function ProductDetailPage() {
               </div>
 
               <div className="flex flex-col gap-6">
-                <div>
-                  <div className="flex flex-wrap gap-2">
-                    {produto.condicao && (
-                      <span className="inline-flex rounded-full border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground">
-                        {produto.condicao}
-                      </span>
-                    )}
-                    {produto.status && (
-                      <span className="inline-flex rounded-full bg-gradient-to-r from-[#09bc8a]/20 to-[#0c1b33]/15 px-2.5 py-1 text-xs font-semibold text-[#0c1b33] dark:text-foreground">
-                        {produto.status}
-                      </span>
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap gap-2">
+                      {produto.condicao && (
+                        <span className="inline-flex rounded-full border bg-muted px-2.5 py-1 text-xs font-semibold text-foreground">
+                          {produto.condicao}
+                        </span>
+                      )}
+                      {produto.status && (
+                        <span className="inline-flex rounded-full bg-gradient-to-r from-[#09bc8a]/20 to-[#0c1b33]/15 px-2.5 py-1 text-xs font-semibold text-[#0c1b33] dark:text-foreground">
+                          {produto.status}
+                        </span>
+                      )}
+                    </div>
+
+                    <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                      {produto.titulo}
+                    </h1>
+
+                    <p className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+                      {produto.precoTexto ?? "Preço sob consulta"}
+                    </p>
+
+                    {produto.estoqueTexto && (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        Estoque:{" "}
+                        <span className="font-medium text-foreground">
+                          {produto.estoqueTexto}
+                        </span>
+                      </p>
                     )}
                   </div>
 
-                  <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
-                    {produto.titulo}
-                  </h1>
-
-                  <p className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-                    {produto.precoTexto ?? "Preço sob consulta"}
-                  </p>
-
-                  {produto.estoqueTexto && (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Estoque:{" "}
-                      <span className="font-medium text-foreground">
-                        {produto.estoqueTexto}
-                      </span>
-                    </p>
-                  )}
+                  <div className="shrink-0 pt-0.5">
+                    {!bootstrapped ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-red-500 opacity-60"
+                        aria-label="Favoritos indisponíveis no momento"
+                      >
+                        <Heart className="size-5" strokeWidth={2} aria-hidden />
+                      </button>
+                    ) : !isAuthenticated ? (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 rounded-full border border-gray-200 bg-white p-0 text-red-500 shadow-sm transition-all hover:border-red-300 hover:bg-red-50 hover:text-red-500"
+                        asChild
+                      >
+                        <Link
+                          to={loginNextHref}
+                          aria-label="Fazer login para adicionar aos favoritos"
+                        >
+                          <Heart className="size-5" strokeWidth={2} aria-hidden />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={
+                          favActionPending ||
+                          isFavorite === null ||
+                          !produto
+                        }
+                        onClick={handleToggleFavorite}
+                        aria-label={
+                          favActionPending
+                            ? "Atualizando favoritos"
+                            : isFavorite === null
+                              ? "Carregando estado dos favoritos"
+                              : isFavorite
+                                ? "Remover dos favoritos"
+                                : "Adicionar aos favoritos"
+                        }
+                        className={cn(
+                          "inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-red-500 shadow-sm transition-all hover:border-red-300 hover:bg-red-50",
+                          isFavorite &&
+                            "border-red-200 bg-red-50 hover:border-red-400 hover:bg-red-100",
+                        )}
+                      >
+                        {favActionPending || isFavorite === null ? (
+                          <Loader2
+                            className="size-5 shrink-0 animate-spin text-red-500"
+                            aria-hidden
+                          />
+                        ) : (
+                          <Heart
+                            className={cn(
+                              "size-5 transition-colors",
+                              isFavorite
+                                ? "fill-red-500 text-red-500"
+                                : "text-red-500",
+                            )}
+                            strokeWidth={2}
+                            aria-hidden
+                          />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <Card>
                   <CardHeader className="pb-4">
                     <CardTitle className="text-lg">Comprar</CardTitle>
                     <CardDescription>
-                      Carrinho em uma próxima etapa. Favoritos salvos aparecem
-                      em{" "}
+                      Adicione ao carrinho para comprar depois. Favoritos salvos
+                      aparecem em{" "}
                       <Link
                         to="/favorites"
                         className="font-medium text-[#09bc8a] underline-offset-4 hover:underline"
@@ -750,77 +899,74 @@ export default function ProductDetailPage() {
                   </CardHeader>
                   <CardContent className="flex flex-col gap-3">
                     <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button
-                        disabled
-                        className="gap-2 bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] text-white hover:opacity-90 sm:flex-1"
-                        title="Esta função estará disponível em breve"
-                        aria-disabled
-                      >
-                        <ShoppingCart className="size-4" aria-hidden />
-                        Adicionar ao carrinho
-                      </Button>
                       {!bootstrapped ? (
                         <Button
                           type="button"
-                          variant="outline"
-                          className="gap-2 border-red-200 text-red-500 sm:flex-1"
                           disabled
+                          className="gap-2 bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] text-white sm:flex-1"
                         >
-                          <Heart className="size-4" aria-hidden />
-                          Favoritar
+                          <ShoppingCart className="size-4" aria-hidden />
+                          Adicionar ao carrinho
                         </Button>
                       ) : !isAuthenticated ? (
                         <Button
                           variant="outline"
-                          className="gap-2 border-red-500 text-red-500 hover:border-red-400 hover:bg-red-50 hover:text-red-500 sm:flex-1"
+                          className="gap-2 border-[#09bc8a] text-[#09bc8a] hover:bg-[#09bc8a]/10 sm:flex-1"
                           asChild
                         >
                           <Link to={loginNextHref}>
-                            <Heart className="size-4" aria-hidden />
-                            Favoritar
+                            <ShoppingCart className="size-4" aria-hidden />
+                            Adicionar ao carrinho
                           </Link>
-                        </Button>
-                      ) : isFavorite ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="gap-2 border-red-600 bg-red-600 text-white hover:border-red-400 hover:bg-red-400 hover:text-white sm:flex-1"
-                          disabled={favActionPending}
-                          onClick={handleToggleFavorite}
-                        >
-                          {favActionPending ? (
-                            <Loader2
-                              className="size-4 animate-spin"
-                              aria-hidden
-                            />
-                          ) : (
-                            <Heart
-                              className="size-4 fill-white"
-                              aria-hidden
-                            />
-                          )}
-                          Remover dos favoritos
                         </Button>
                       ) : (
                         <Button
                           type="button"
-                          variant="outline"
-                          className="gap-2 border-red-500 text-red-500 hover:border-red-400 hover:bg-red-50 hover:text-red-500 sm:flex-1"
-                          disabled={favActionPending || isFavorite === null}
-                          onClick={handleToggleFavorite}
+                          className="gap-2 bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] text-white hover:opacity-90 sm:flex-1"
+                          disabled={addPending}
+                          onClick={handleAddToCart}
                         >
-                          {favActionPending ? (
+                          {addPending ? (
                             <Loader2
                               className="size-4 animate-spin"
                               aria-hidden
                             />
                           ) : (
-                            <Heart className="size-4" aria-hidden />
+                            <ShoppingCart className="size-4" aria-hidden />
                           )}
-                          {isFavorite === null ? "Carregando…" : "Favoritar"}
+                          Adicionar ao carrinho
+                        </Button>
+                      )}
+                      {!bootstrapped ? (
+                        <Button
+                          type="button"
+                          className="gap-2 bg-[#0c1b33] font-semibold text-white opacity-60 sm:flex-1"
+                          disabled
+                        >
+                          Comprar
+                        </Button>
+                      ) : !isAuthenticated ? (
+                        <Button
+                          className="gap-2 bg-[#0c1b33] font-semibold text-white hover:bg-[#0c1b33]/90 sm:flex-1"
+                          asChild
+                        >
+                          <Link to={loginNextHref}>Comprar</Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          className="gap-2 bg-[#0c1b33] font-semibold text-white shadow-md hover:bg-[#0c1b33]/90 sm:flex-1"
+                          onClick={handleBuyPlaceholder}
+                        >
+                          Comprar
                         </Button>
                       )}
                     </div>
+                    {cartMessage && (
+                      <p className="text-sm text-destructive" role="alert">
+                        {cartMessage}
+                      </p>
+                    )}
                     {favMessage && (
                       <p className="text-sm text-destructive" role="alert">
                         {favMessage}
@@ -839,9 +985,21 @@ export default function ProductDetailPage() {
                 Descrição
               </h2>
               <Card>
-                <CardContent className="py-10 text-sm leading-relaxed text-muted-foreground">
+                <CardContent className=" text-sm leading-relaxed text-muted-foreground">
                   {produto.descricao ? (
-                    <p className="whitespace-pre-wrap">{produto.descricao}</p>
+                    <div className="min-w-0 max-w-none [&_a]:break-words">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkBreaks]}
+                        components={PRODUTO_DESCRICAO_MARKDOWN_COMPONENTS}
+                        urlTransform={(url) => {
+                          const t = url.trim();
+                          if (/^javascript:/i.test(t)) return "";
+                          return url;
+                        }}
+                      >
+                        {produto.descricao}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
                     <p>
                       Nenhuma descrição detalhada foi informada neste anúncio.
@@ -926,7 +1084,7 @@ export default function ProductDetailPage() {
               >
                 <h2
                   id="perguntas-heading"
-                  className="text-xl font-bold tracking-tight"
+                  className="text-xl font-bold tracking-tight text-foreground"
                 >
                   Perguntas
                 </h2>
@@ -937,30 +1095,85 @@ export default function ProductDetailPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="flex flex-col gap-3">
-                    {perguntas.rows.map((p, idx) => (
-                      <Card key={`${idx}-${p.texto.slice(0, 24)}`}>
-                        <CardHeader className="pb-2">
-                          <CardDescription className="text-sm font-semibold leading-snug text-foreground">
-                            {p.texto}
-                          </CardDescription>
-                          {p.meta && (
-                            <p className="text-xs text-muted-foreground">
-                              {p.meta}
-                            </p>
+                  <ul
+                    className="m-0 flex list-none flex-col gap-3 p-0"
+                    role="list"
+                  >
+                    {perguntas.rows.map((p, idx) => {
+                      const isOpen = perguntaAbertaIdx === idx;
+                      const triggerId = `pergunta-trigger-${idx}`;
+                      const panelId = `pergunta-resposta-${idx}`;
+                      return (
+                        <li
+                          key={`${idx}-${p.texto.slice(0, 24)}`}
+                          className={cn(
+                            "overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-300 ease-out motion-reduce:duration-150",
+                            isOpen
+                              ? "border-[#09bc8a] bg-emerald-50/40 shadow-[0_10px_28px_rgba(9,188,138,0.22)] dark:border-[#09bc8a] dark:bg-emerald-950/30"
+                              : "border-border hover:border-[#09bc8a] hover:shadow-[0_8px_24px_rgba(9,188,138,0.18)] dark:hover:border-emerald-500/70",
                           )}
-                        </CardHeader>
-                        {p.resposta && (
-                          <CardContent className="border-t pt-4 text-sm text-muted-foreground">
-                            <span className="font-semibold text-foreground">
-                              Resposta:{" "}
+                        >
+                          <button
+                            type="button"
+                            id={triggerId}
+                            className="flex w-full cursor-pointer items-start justify-between gap-3 px-5 py-4 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#09bc8a] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                            aria-expanded={isOpen}
+                            aria-controls={panelId}
+                            onClick={() =>
+                              setPerguntaAbertaIdx(isOpen ? null : idx)
+                            }
+                          >
+                            <span className="min-w-0 flex-1 space-y-1">
+                              <span className="block text-sm font-semibold leading-snug text-foreground">
+                                {p.texto}
+                              </span>
+                              {p.meta ? (
+                                <span className="block text-xs font-normal text-muted-foreground">
+                                  {p.meta}
+                                </span>
+                              ) : null}
                             </span>
-                            {p.resposta}
-                          </CardContent>
-                        )}
-                      </Card>
-                    ))}
-                  </div>
+                            <ChevronDown
+                              className={cn(
+                                "mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform duration-300 ease-out motion-reduce:duration-150",
+                                isOpen && "rotate-180 text-[#09bc8a]",
+                              )}
+                              aria-hidden
+                            />
+                          </button>
+                          <div
+                            className={cn(
+                              "grid min-h-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none",
+                              isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+                            )}
+                          >
+                            <div className="min-h-0 overflow-hidden">
+                              <div
+                                id={panelId}
+                                role="region"
+                                aria-labelledby={triggerId}
+                                aria-hidden={!isOpen}
+                                className={cn(
+                                  "px-5 py-4 text-sm leading-relaxed text-muted-foreground transition-opacity duration-200 ease-out",
+                                  isOpen
+                                    ? "border-t border-emerald-200 bg-transparent opacity-100 dark:border-emerald-600/55"
+                                    : "border-t border-transparent opacity-0",
+                                )}
+                              >
+                                {p.resposta ? (
+                                  <p className="text-pretty">{p.resposta}</p>
+                                ) : (
+                                  <p className="italic text-muted-foreground">
+                                    Nenhuma resposta pública foi publicada ainda.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
               </section>
             )}

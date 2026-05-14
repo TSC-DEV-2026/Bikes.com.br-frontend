@@ -1,12 +1,12 @@
 // src/api/endpoints/auth.routes.ts
-import api from "@/api/axiosInstance";
+import api, { AUTH_REFRESH_RELATIVE_PATH } from "@/api/axiosInstance";
 
 export const AUTH_ENDPOINTS = {
   register: "/auth/register",
   login: "/auth/login",
   me: "/auth/me",
   logout: "/auth/logout",
-  refresh: "/auth/refresh-token",
+  refresh: AUTH_REFRESH_RELATIVE_PATH,
 
   /** Não existe no backend atual — mantido para chamadas legadas; espera-se 404. */
   requestPasswordReset: "/auth/request-password-reset",

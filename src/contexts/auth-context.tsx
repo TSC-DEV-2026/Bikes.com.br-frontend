@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useEffect, useMemo, useState } from 
 import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import { authFetch } from "@/api/authFetch";
+import { setAuthSessionInvalidHandler } from "@/api/sessionInvalidBridge";
 import { authRoutes } from "@/api/endpoints";
 import { notifySuccess } from "@/lib/toast";
 
@@ -46,6 +47,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(!!u);
     writeCache(u);
   }, []);
+
+  useEffect(() => {
+    setAuthSessionInvalidHandler(() => {
+      setUserLocal(null);
+    });
+    return () => setAuthSessionInvalidHandler(null);
+  }, [setUserLocal]);
 
   const refreshMe = useCallback(async (): Promise<User | null> => {
     try {
