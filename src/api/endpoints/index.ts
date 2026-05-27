@@ -1,6 +1,10 @@
 export * as authFetchRoutes from "./authFetch.routes";
 export * as authRoutes from "./auth.routes";
 export * as catalogoRoutes from "./catalogo.routes";
+export * as marcasRoutes from "./marcas.routes";
+export * as categoriasRoutes from "./categorias.routes";
+export * as produtosRoutes from "./produtos.routes";
 export * as userRoutes from "./users.routes";
 export * as localidadesRoutes from "./localidades.routes";
+export * as vendedoresRoutes from "./vendedores.routes";
 export { paths } from "./paths";

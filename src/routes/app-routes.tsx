@@ -7,6 +7,12 @@ import LandingPage from "@/pages/landing/landing-page";
 import HomePage from "@/pages/home/home-page";
 import AboutPage from "@/pages/about/about-page";
 import EnterprisePage from "@/pages/enterprise/enterprise-page";
+import VenderEntryPage from "@/pages/vender/vender-entry-page";
+import MinhaLojaPage from "@/pages/vender/minha-loja-page";
+import VenderAnunciarPage from "@/pages/vender/vender-anunciar-page";
+import VenderProdutoCreateIntroPage from "@/pages/vender/vender-produto-create-intro-page";
+import VenderProdutoCreateFormPage from "@/pages/vender/vender-produto-create-form-page";
+import VenderProdutoEditPage from "@/pages/vender/vender-produto-edit-page";
 import UserPage from "@/pages/user/user-page";
 import LoginPage from "@/pages/login/login-page";
 import RegisterPage from "@/pages/register/register-page";
@@ -64,6 +70,22 @@ export function AppRoutes() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/enterprise" element={<EnterprisePage />} />
+        <Route path="/vender" element={<VenderEntryPage />} />
+        <Route path="/vender/anunciar" element={<VenderAnunciarPage />} />
+        <Route path="/vender/cadastro-produto" element={<VenderProdutoCreateIntroPage />} />
+        <Route
+          path="/vender/cadastro-produto/formulario"
+          element={<VenderProdutoCreateFormPage />}
+        />
+        <Route path="/minha-loja" element={<MinhaLojaPage />} />
+        <Route
+          path="/minha-loja/produtos/:id"
+          element={<ProductDetailPage mode="seller-preview" />}
+        />
+        <Route
+          path="/minha-loja/produtos/:id/editar"
+          element={<VenderProdutoEditPage />}
+        />
         <Route path="/user" element={<UserPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

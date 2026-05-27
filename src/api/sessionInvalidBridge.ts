@@ -1,3 +1,5 @@
+import { clearAuthSession } from "@/api/clearAuthSession";
+
 type AuthSessionInvalidHandler = () => void;
 
 let handler: AuthSessionInvalidHandler | null = null;
@@ -8,5 +10,6 @@ export function setAuthSessionInvalidHandler(fn: AuthSessionInvalidHandler | nul
 }
 
 export function notifyAuthSessionInvalid() {
+  clearAuthSession();
   handler?.();
 }

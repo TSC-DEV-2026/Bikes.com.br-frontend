@@ -37,3 +37,29 @@
 ## Componentes
 
 Preferir importar funções de `@/api/endpoints` nas páginas em vez de novos `axios.get` soltos — reduz regressões e duplicação.
+
+## Produtos — edição e imagens (`produtos.routes.ts`)
+
+- **PUT** `/v1/produtos/{produto_id}` é a **única** rota de edição do produto e de gestão de imagens (multipart: campo `meta` JSON + `imagens` opcional + `file` legado opcional).
+- **GET** `/v1/produtos/{id}` retorna apenas imagens **ativas** na galeria.
+- **DELETE** `/v1/produtos/{produto_id}/imagens/{imagem_id}` remove uma imagem publicada.
+
+### `meta` — imagens
+
+| Campo | Uso |
+|-------|-----|
+| `substituir_imagens: false` | **Padrão para anexar.** Mantém imagens ativas e adiciona as novas (sempre `ativo=true` no backend). |
+| `substituir_imagens: true` | Substitui a galeria ativa pelas imagens enviadas no request (fluxo explícito de troca total). |
+| `imagem_principal_index` | Capa entre os **arquivos novos** deste PUT (0-based). Pode ser usado ao anexar (`substituir_imagens=false`). |
+| `imagem_principal_id` | Capa entre imagens **já ativas** (sem reenviar arquivos). **Não** enviar junto com `substituir_imagens=true`. |
+
+O frontend **não** envia `status`/`ativo` por imagem; o backend define novas imagens como ativas.
+
+Limite: **10 imagens ativas** por produto (validar no cliente antes do upload).
+
+### Rotas removidas (não consumir)
+
+- **POST** `/v1/produtos/{produto_id}/imagens` — use PUT com `substituir_imagens=false` e `imagens`.
+- **PATCH** públicas de produto (ex.: `/produtos/{id}/status`) — removidas; não usar `api.patch` para esses fluxos.
+
+Helpers: `updateProduto`, `addProdutoImagens` (anexa com `substituir_imagens=false` por padrão), `setProdutoImagemPrincipal` em `product-gallery-upload.ts`.

@@ -84,6 +84,7 @@ export function normalizeFavoritosListItems(data: unknown): ProdutoListaView[] {
         id,
         titulo: `Produto ${String(id)}`,
         precoTexto: null,
+        precoOriginalTexto: null,
         imagemUrl: null,
         statusOuCondicao: null,
       });
@@ -110,6 +111,7 @@ export function normalizeFavoritosListItems(data: unknown): ProdutoListaView[] {
         id: idOnly,
         titulo: `Produto ${String(idOnly)}`,
         precoTexto: null,
+        precoOriginalTexto: null,
         imagemUrl: null,
         statusOuCondicao: null,
       });

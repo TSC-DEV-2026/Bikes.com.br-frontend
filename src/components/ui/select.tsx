@@ -39,7 +39,7 @@ function SelectTrigger({
       className={cn(
         [
           // base
-          "flex w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow]",
+          "flex w-full min-w-0 items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow]",
           // cores sólidas (sem transparência)
           "bg-white text-foreground border-input", 
           "dark:bg-background dark:text-foreground   dark:border-input",
@@ -92,7 +92,7 @@ function SelectContent({
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
             // radix vars
-            "max-h-[var(--radix-select-content-available-height)]",
+            "max-h-[min(60dvh,var(--radix-select-content-available-height))] overscroll-contain touch-pan-y",
           ].join(" "),
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
@@ -106,7 +106,7 @@ function SelectContent({
           className={cn(
             "p-1",
             position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+              "w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
           )}
         >
           {children}

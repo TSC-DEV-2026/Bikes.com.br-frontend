@@ -1,27 +1,9 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { getApiBaseUrl } from "@/lib/env";
+import { clearAuthSession } from "@/api/clearAuthSession";
 import { notifyAuthSessionInvalid } from "@/api/sessionInvalidBridge";
 
-/** Chaves legadas (fluxo Bearer/localStorage) — removidas na carga para não vazar estado antigo. */
-const LEGACY_TOKEN_KEYS = [
-  "auth.access_token.v1",
-  "auth.refresh_token.v1",
-  "auth.token_type.v1",
-] as const;
-
-function clearLegacyTokenKeys() {
-  if (typeof window === "undefined") return;
-  for (const key of LEGACY_TOKEN_KEYS) {
-    try {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
-  }
-}
-
-clearLegacyTokenKeys();
+clearAuthSession();
 
 /** Contrato documentado: `POST {baseURL}/auth/refresh-token` (cookies HttpOnly). */
 export const AUTH_REFRESH_RELATIVE_PATH = "/auth/refresh-token";

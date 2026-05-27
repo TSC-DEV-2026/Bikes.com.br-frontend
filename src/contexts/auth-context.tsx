@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useEffect, useMemo, useState } from 
 import { useNavigate } from "react-router-dom";
 import { isAxiosError } from "axios";
 import { authFetch } from "@/api/authFetch";
+import { clearAuthSession } from "@/api/clearAuthSession";
 import { setAuthSessionInvalidHandler } from "@/api/sessionInvalidBridge";
 import { authRoutes } from "@/api/endpoints";
 import { notifySuccess } from "@/lib/toast";
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
+          clearAuthSession();
           setUserLocal(null);
         }
         return null;
@@ -85,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isAxiosError(e)) {
         const status = e.response?.status;
         if (status === 401 || status === 403) {
+          clearAuthSession();
           setUserLocal(null);
           return null;
         }
@@ -105,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Idempotente: backend pode responder 401 se cookie já expirou.
     } finally {
+      clearAuthSession();
       setUserLocal(null);
       notifySuccess("Você saiu da sua conta.");
       navigate("/", { replace: true });

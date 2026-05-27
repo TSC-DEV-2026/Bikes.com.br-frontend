@@ -86,6 +86,7 @@ function detalheToListaView(
     id: detalhe.id,
     titulo: detalhe.titulo,
     precoTexto: detalhe.precoTexto,
+    precoOriginalTexto: null,
     imagemUrl: detalhe.imagens[0] ?? null,
     statusOuCondicao: detalhe.condicao ?? detalhe.status,
   };

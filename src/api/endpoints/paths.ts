@@ -20,4 +20,31 @@ export const paths = {
       ? `/home?q=${encodeURIComponent(q.trim())}`
       : "/home",
   editAddress: (id: number | string) => `/editAddress/${id}`,
+  /** Entrada do fluxo &quot;Vender&quot; (valida vendedor e redireciona). */
+  vender: () => "/vender",
+  /** Painel da loja (resumo + edição sob demanda). */
+  minhaLoja: () => "/minha-loja",
+  /** Pré-visualização do anúncio no modo vendedor (somente leitura). */
+  minhaLojaProduto: (produtoId: number | string) =>
+    `/minha-loja/produtos/${encodeURIComponent(String(produtoId))}`,
+  /** Edição do anúncio em tela dedicada. */
+  minhaLojaProdutoEditar: (produtoId: number | string) =>
+    `/minha-loja/produtos/${encodeURIComponent(String(produtoId))}/editar`,
+  /** Escolha da categoria principal antes do cadastro (com header/footer). */
+  venderAnunciar: () => "/vender/anunciar",
+  /** Introdução ao cadastro de produto (com header/footer). */
+  venderCadastroProduto: () => "/vender/cadastro-produto",
+  /** Wizard de cadastro de produto (layout limpo, sem header/footer). */
+  venderCadastroProdutoFormulario: (params?: {
+    categoriaId: number;
+    categoriaSlug: string;
+  }) => {
+    const base = "/vender/cadastro-produto/formulario";
+    if (!params) return base;
+    const q = new URLSearchParams({
+      categoria_id: String(params.categoriaId),
+      categoria_slug: params.categoriaSlug,
+    });
+    return `${base}?${q.toString()}`;
+  },
 } as const;

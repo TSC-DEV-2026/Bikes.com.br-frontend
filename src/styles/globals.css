@@ -90,6 +90,33 @@
   }
 }
 
+/*
+ * Autofill do navegador (sugestões salvas): mantém cores padrão dos inputs
+ * (branco / verde claro no foco), sem fundo azul ou roxo do Chrome/Edge.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0c1b33;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #0c1b33;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #eafaf2 inset;
+  box-shadow: 0 0 0 1000px #eafaf2 inset;
+}
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -97,4 +124,20 @@
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * Ranade: adicione o arquivo licenciado em public/fonts/Ranade.woff2 e descomente o @font-face abaixo.
+ * Sem o arquivo, não declarar @font-face evita requisição a /fonts/Ranade.woff2 (404/HTML → erro OTS).
+ */
+/* @font-face {
+  font-family: "Ranade";
+  src: url("/fonts/Ranade.woff2") format("woff2");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+} */
+
+.home-hero-ranade-title {
+  font-family: "Ranade", "Open Sans", system-ui, sans-serif;
 }

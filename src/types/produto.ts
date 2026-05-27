@@ -14,6 +14,8 @@ export type ProdutoListagemItem = {
   imagem_principal_url: string | null;
   ativo?: boolean;
   status?: string;
+  /** Opcional na listagem, quando a API envia timestamp ISO. */
+  criado_em?: string;
 };
 
 export type ProdutoListagemResponse = {
@@ -24,31 +26,76 @@ export type ProdutoListagemResponse = {
   total_pages: number;
 };
 
+export type IndexadorProduto = {
+  campo: string;
+  valor: string;
+};
+
+/** Condição do produto aceita na API (criação e atualização). */
+export type ProdutoCondicao = "novo" | "usado" | "semi-novo";
+
+export const PRODUTO_CONDICAO_OPTIONS: ReadonlyArray<{
+  value: ProdutoCondicao;
+  label: string;
+}> = [
+  { value: "novo", label: "Novo" },
+  { value: "semi-novo", label: "Semi-novo" },
+  { value: "usado", label: "Usado" },
+];
+
+export function parseProdutoCondicao(raw: string | null | undefined): ProdutoCondicao {
+  const k = String(raw ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/_/g, "-");
+  if (k.includes("semi") && k.includes("nov")) return "semi-novo";
+  if (k === "seminovo") return "semi-novo";
+  if (k.includes("usado")) return "usado";
+  return "novo";
+}
+
+export function isProdutoCondicao(value: string): value is ProdutoCondicao {
+  return PRODUTO_CONDICAO_OPTIONS.some((o) => o.value === value);
+}
+
+export function formatProdutoCondicaoLabel(
+  condicao: ProdutoCondicao | string | null | undefined,
+): string {
+  const parsed = parseProdutoCondicao(condicao ?? undefined);
+  return PRODUTO_CONDICAO_OPTIONS.find((o) => o.value === parsed)?.label ?? "Novo";
+}
+
 export type ProdutoCreateMeta = {
   categoria_id: number;
   marca_id: number;
   titulo: string;
-  slug?: string;
+  slug?: string | null;
   descricao: string;
-  preco: string;
-  preco_promocional?: string | null;
-  condicao: "novo" | "usado";
-  sku?: string;
-  peso_gramas?: number;
-  altura_cm?: number;
-  largura_cm?: number;
-  comprimento_cm?: number;
+  preco: number;
+  preco_promocional?: number | null;
+  condicao: ProdutoCondicao;
+  status?: string;
+  sku?: string | null;
+  peso_gramas?: number | null;
+  altura_cm?: number | null;
+  largura_cm?: number | null;
+  comprimento_cm?: number | null;
   ativo?: boolean;
-  estoque_inicial: number;
-  imagem_principal_index?: number;
-  indexadores?: string[];
+  estoque_inicial?: number;
+  indexadores?: IndexadorProduto[];
+  imagem_principal_index?: number | null;
 };
 
 /** Visão normalizada para listagem na UI (campos opcionais no contrato real). */
 export type ProdutoListaView = {
   id: ProdutoId;
   titulo: string;
+  /** Preço exibido (promocional quando válido, senão o preço base). */
   precoTexto: string | null;
+  /** Preço cheio riscado quando há promo menor que o preço base. */
+  precoOriginalTexto: string | null;
   imagemUrl: string | null;
   statusOuCondicao: string | null;
 };
@@ -59,6 +106,35 @@ export type ProdutoIndexadorView = {
   valor: string;
 };
 
+/** Item da galeria do produto (GET /produtos/{id}). */
+export type ProdutoImagemView = {
+  id: number | null;
+  url: string;
+  principal: boolean;
+};
+
+/** Atualiza flags de capa localmente (sem refetch). */
+export function withProdutoImagemPrincipal(
+  imagens: ProdutoImagemView[],
+  principalId: number,
+): ProdutoImagemView[] {
+  return imagens.map((im) => ({
+    ...im,
+    principal: im.id === principalId,
+  }));
+}
+
+/** Remove imagem da lista local; garante uma capa se ainda houver fotos. */
+export function withoutProdutoImagem(
+  imagens: ProdutoImagemView[],
+  imagemId: number,
+): ProdutoImagemView[] {
+  const rest = imagens.filter((im) => im.id !== imagemId);
+  if (!rest.length) return rest;
+  if (rest.some((im) => im.principal)) return rest;
+  return rest.map((im, idx) => ({ ...im, principal: idx === 0 }));
+}
+
 /** Visão normalizada para página de detalhe (campos opcionais no contrato real). */
 export type ProdutoDetalheView = {
   id: ProdutoId;
@@ -68,6 +144,7 @@ export type ProdutoDetalheView = {
   condicao: string | null;
   status: string | null;
   imagens: string[];
+  imagensGaleria: ProdutoImagemView[];
   estoqueTexto: string | null;
   /** Indexadores da API: objetos `{ campo, valor }` ou legado `string[]`. */
   indexadores: ProdutoIndexadorView[];
@@ -143,6 +220,50 @@ function extractImagemUrl(record: Record<string, unknown>): string | null {
   }
 
   return null;
+}
+
+function numberishFromRecord(
+  record: Record<string, unknown>,
+  key: string,
+): number | null {
+  const v = record[key];
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const t = v.trim().replace(/\s/g, "").replace(",", ".");
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Preço de listagem: promo só quando menor que o preço base. */
+function resolveListaViewPrecos(record: Record<string, unknown>): {
+  precoTexto: string | null;
+  precoOriginalTexto: string | null;
+} {
+  const base = numberishFromRecord(record, "preco");
+  const promo = numberishFromRecord(record, "preco_promocional");
+
+  if (base != null && promo != null && promo < base) {
+    return {
+      precoTexto: formatPrecoTexto(promo),
+      precoOriginalTexto: formatPrecoTexto(base),
+    };
+  }
+
+  const single = base ?? promo;
+  if (single != null) {
+    return {
+      precoTexto: formatPrecoTexto(single),
+      precoOriginalTexto: null,
+    };
+  }
+
+  return {
+    precoTexto: formatPrecoTexto(extractPrecoRaw(record)),
+    precoOriginalTexto: null,
+  };
 }
 
 function extractPrecoRaw(record: Record<string, unknown>): unknown {
@@ -244,7 +365,7 @@ export function itemUnknownToListaView(item: unknown): ProdutoListaView | null {
   if (id == null) return null;
 
   const titulo = fallbackTitulo(item);
-  const precoTexto = formatPrecoTexto(extractPrecoRaw(item));
+  const { precoTexto, precoOriginalTexto } = resolveListaViewPrecos(item);
   const imagemUrl = extractImagemUrl(item);
   const statusOuCondicao = extractStatusOuCondicao(item);
 
@@ -252,6 +373,7 @@ export function itemUnknownToListaView(item: unknown): ProdutoListaView | null {
     id,
     titulo,
     precoTexto,
+    precoOriginalTexto,
     imagemUrl,
     statusOuCondicao,
   };
@@ -327,32 +449,84 @@ function pushImageUrl(out: string[], url: string | null | undefined) {
   if (!out.includes(t)) out.push(t);
 }
 
-function collectImagensFromArray(out: string[], arr: unknown) {
+function pickImagemUrlFromRecord(rec: Record<string, unknown>): string | null {
+  const u = rec.url ?? rec.src ?? rec.path ?? rec.link ?? rec.base64;
+  if (typeof u === "string" && u.trim()) return u.trim();
+  return null;
+}
+
+function isPrincipalFlag(v: unknown): boolean {
+  if (v === true || v === 1 || v === "1" || v === "true") return true;
+  return false;
+}
+
+function collectImagensViewsFromArray(out: ProdutoImagemView[], arr: unknown) {
   if (!Array.isArray(arr)) return;
   for (const el of arr) {
-    if (typeof el === "string") pushImageUrl(out, el);
-    else if (isRecord(el)) {
-      const u = el.url ?? el.src ?? el.path ?? el.link ?? el.base64;
-      if (typeof u === "string") pushImageUrl(out, u);
+    if (typeof el === "string") {
+      const url = el.trim();
+      if (!url) continue;
+      if (!out.some((item) => item.url === url)) {
+        out.push({ id: null, url, principal: false });
+      }
+      continue;
     }
+    if (!isRecord(el)) continue;
+    const url = pickImagemUrlFromRecord(el);
+    if (!url || out.some((item) => item.url === url)) continue;
+    const id =
+      parseIdField(el.id) ??
+      parseIdField(el.imagem_id) ??
+      parseIdField(el.imagemId) ??
+      parseIdField(el.id_imagem);
+    out.push({
+      id: typeof id === "number" ? id : null,
+      url,
+      principal: isPrincipalFlag(el.principal ?? el.is_principal ?? el.capa),
+    });
   }
 }
 
-function extractImagensDetalheList(record: Record<string, unknown>): string[] {
-  const out: string[] = [];
-  collectImagensFromArray(out, record.imagens);
-  collectImagensFromArray(out, record.images);
-  collectImagensFromArray(out, record.fotos);
-  collectImagensFromArray(out, record.galeria);
-  collectImagensFromArray(out, record.midias);
-  const principal = extractImagemUrl(record);
-  if (principal) {
-    const copy = out.filter((u) => u !== principal);
-    out.length = 0;
-    pushImageUrl(out, principal);
-    for (const u of copy) pushImageUrl(out, u);
+/** Garante no máximo uma imagem com `principal: true` (primeira vence se houver várias). */
+export function normalizeProdutoImagensGaleria(views: ProdutoImagemView[]): ProdutoImagemView[] {
+  const principal = views.filter((v) => v.principal);
+  const rest = views.filter((v) => !v.principal);
+  if (!principal.length && views.length > 0) {
+    return views.map((v, idx) => ({ ...v, principal: idx === 0 }));
   }
-  return out;
+  if (principal.length > 1) {
+    const [first, ...others] = principal;
+    return [
+      first,
+      ...others.map((v) => ({ ...v, principal: false })),
+      ...rest,
+    ];
+  }
+  return [...principal, ...rest];
+}
+
+/** Galeria com id, url e flag `principal` a partir do payload do produto. */
+export function extractProdutoImagensViews(data: unknown): ProdutoImagemView[] {
+  const record = unwrapProdutoDetalheRecord(data);
+  if (!record) return [];
+
+  const out: ProdutoImagemView[] = [];
+  collectImagensViewsFromArray(out, record.imagens);
+  collectImagensViewsFromArray(out, record.images);
+  collectImagensViewsFromArray(out, record.fotos);
+  collectImagensViewsFromArray(out, record.galeria);
+  collectImagensViewsFromArray(out, record.midias);
+
+  const principalUrl = extractImagemUrl(record);
+  if (principalUrl && !out.some((v) => v.url === principalUrl)) {
+    out.unshift({ id: null, url: principalUrl, principal: true });
+  }
+
+  return normalizeProdutoImagensGaleria(out);
+}
+
+function extractImagensDetalheList(record: Record<string, unknown>): string[] {
+  return extractProdutoImagensViews(record).map((v) => v.url);
 }
 
 function extractDescricaoDetalhe(record: Record<string, unknown>): string | null {
@@ -504,7 +678,7 @@ function extractEstoqueTexto(record: Record<string, unknown>): string | null {
   return null;
 }
 
-function unwrapProdutoDetalheRecord(data: unknown): Record<string, unknown> | null {
+export function unwrapProdutoDetalheRecord(data: unknown): Record<string, unknown> | null {
   if (!isRecord(data)) return null;
   const nested = data.data ?? data.produto ?? data.item ?? data.result;
   if (isRecord(nested) && (pickId(nested) != null || pickString(nested, ["titulo", "nome", "name"])))
@@ -523,7 +697,8 @@ export function normalizeProdutoDetalhe(
 
   const id = pickId(record) ?? routeProdutoId;
   const titulo = fallbackTitulo(record);
-  const imagens = extractImagensDetalheList(record);
+  const imagensGaleria = extractProdutoImagensViews(record);
+  const imagens = imagensGaleria.map((v) => v.url);
 
   return {
     id,
@@ -533,8 +708,257 @@ export function normalizeProdutoDetalhe(
     condicao: extractCondicaoDetalhe(record),
     status: extractStatusDetalhe(record),
     imagens,
+    imagensGaleria,
     estoqueTexto: extractEstoqueTexto(record),
     indexadores: extractIndexadoresDetalhe(record),
+  };
+}
+
+/** Id do vendedor dono do anúncio (GET /produtos/{id}), quando presente no payload. */
+export function extractVendedorIdFromProdutoPayload(data: unknown): number | null {
+  const record = unwrapProdutoDetalheRecord(data);
+  if (!record) return null;
+  const keys = ["vendedor_id", "vendedorId", "seller_id", "id_vendedor"] as const;
+  for (const k of keys) {
+    const v = record[k];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim()) {
+      const n = Number(v.trim());
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+function parseIdField(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim()) {
+    const n = Number.parseInt(v.trim(), 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+export function extractCategoriaMarcaIds(data: unknown): {
+  categoria_id: number | null;
+  marca_id: number | null;
+} {
+  const record = unwrapProdutoDetalheRecord(data);
+  if (!record) {
+    return { categoria_id: null, marca_id: null };
+  }
+
+  let categoria_id = parseIdField(record.categoria_id);
+  if (categoria_id == null) {
+    const catRaw = record.categoria ?? record.categoria_data;
+    if (isRecord(catRaw)) {
+      categoria_id = parseIdField(catRaw.id);
+    }
+  }
+
+  let marca_id = parseIdField(record.marca_id);
+  if (marca_id == null) {
+    const marRaw = record.marca ?? record.marca_data;
+    if (isRecord(marRaw)) {
+      marca_id = parseIdField(marRaw.id);
+    }
+  }
+
+  return { categoria_id, marca_id };
+}
+
+/** Nomes amigáveis quando a API aninha `categoria` / `marca`. */
+export function extractCategoriaMarcaLabels(data: unknown): {
+  categoriaLabel: string | null;
+  marcaLabel: string | null;
+} {
+  const record = unwrapProdutoDetalheRecord(data);
+  if (!record) return { categoriaLabel: null, marcaLabel: null };
+
+  const catRaw = record.categoria ?? record.categoria_data;
+  const marRaw = record.marca ?? record.marca_data;
+
+  let categoriaLabel: string | null = null;
+  if (isRecord(catRaw)) {
+    categoriaLabel = pickString(catRaw, ["nome", "titulo", "name"]);
+  }
+
+  let marcaLabel: string | null = null;
+  if (isRecord(marRaw)) {
+    marcaLabel = pickString(marRaw, ["nome", "name"]);
+  }
+
+  return { categoriaLabel, marcaLabel };
+}
+
+export function extractProdutoOpcionaisFromPayload(data: unknown): {
+  slug: string;
+  sku: string;
+  peso_gramas: string;
+  altura_cm: string;
+  largura_cm: string;
+  comprimento_cm: string;
+} {
+  const record = unwrapProdutoDetalheRecord(data);
+  const empty = {
+    slug: "",
+    sku: "",
+    peso_gramas: "",
+    altura_cm: "",
+    largura_cm: "",
+    comprimento_cm: "",
+  };
+  if (!record) return empty;
+
+  const slug = pickString(record, ["slug", "slug_produto"]) ?? "";
+  const sku = pickString(record, ["sku", "codigo_sku", "codigo"]) ?? "";
+
+  const numToStr = (v: unknown): string => {
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    if (typeof v === "string" && v.trim()) return v.trim();
+    return "";
+  };
+
+  return {
+    slug,
+    sku,
+    peso_gramas: numToStr(
+      record.peso_gramas ?? record.peso ?? record.pesoGrama,
+    ),
+    altura_cm: numToStr(record.altura_cm ?? record.altura),
+    largura_cm: numToStr(record.largura_cm ?? record.largura),
+    comprimento_cm: numToStr(record.comprimento_cm ?? record.comprimento),
+  };
+}
+
+export type ProdutoSellerEditFormValues = {
+  titulo: string;
+  descricao: string;
+  preco: string;
+  preco_promocional: string;
+  condicao: ProdutoCondicao;
+  ativo: boolean;
+  estoque_inicial: string;
+};
+
+function numberishToInputString(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return String(v).replace(".", ",");
+  }
+  if (typeof v === "string") return v.trim();
+  return "";
+}
+
+function pickAtivoFromRecord(record: Record<string, unknown>): boolean | null {
+  const v = record.ativo ?? record.publicado ?? record.visivel;
+  if (typeof v === "boolean") return v;
+  if (v === 1 || v === "1" || v === "true") return true;
+  if (v === 0 || v === "0" || v === "false") return false;
+  return null;
+}
+
+/**
+ * Valores iniciais do painel de edição do vendedor (somente UI / preview local).
+ * Não altera o contrato da API.
+ */
+export function buildProdutoSellerEditFormValues(
+  normalized: ProdutoDetalheView,
+  data: unknown
+): ProdutoSellerEditFormValues {
+  const record = unwrapProdutoDetalheRecord(data);
+
+  const hasPromo =
+    record?.preco_promocional != null &&
+    record.preco_promocional !== "" &&
+    !(
+      typeof record.preco_promocional === "number" &&
+      !Number.isFinite(record.preco_promocional)
+    );
+
+  const precoBase = numberishToInputString(record?.preco);
+  const precoPromo = hasPromo ? numberishToInputString(record.preco_promocional) : "";
+
+  const condicao = parseProdutoCondicao(
+    String(record?.condicao ?? normalized.condicao ?? "novo"),
+  );
+
+  const estoqueKeys = [
+    "estoque_inicial",
+    "estoque",
+    "quantidade",
+    "quantidade_estoque",
+    "stock",
+    "qtd",
+  ] as const;
+  let estoqueStr = "";
+  for (const k of estoqueKeys) {
+    const ev = record?.[k];
+    if (typeof ev === "number" && Number.isFinite(ev)) {
+      estoqueStr = String(Math.trunc(ev));
+      break;
+    }
+    if (typeof ev === "string" && ev.trim()) {
+      estoqueStr = ev.trim();
+      break;
+    }
+  }
+
+  return {
+    titulo: normalized.titulo,
+    descricao: normalized.descricao ?? "",
+    preco: precoBase,
+    preco_promocional: precoPromo,
+    condicao,
+    ativo: pickAtivoFromRecord(record ?? {}) ?? true,
+    estoque_inicial: estoqueStr,
+  };
+}
+
+function parsePtBrDecimal(raw: string): number | null {
+  const t = raw.trim().replace(/\s/g, "").replace(",", ".");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+function precoDisplayFromFormulario(form: ProdutoSellerEditFormValues): string | null {
+  const promo = parsePtBrDecimal(form.preco_promocional);
+  const base = parsePtBrDecimal(form.preco);
+  const chosen = promo != null ? promo : base;
+  if (chosen == null) return null;
+  return formatPrecoTexto(chosen);
+}
+
+function estoqueTextoFromFormulario(form: ProdutoSellerEditFormValues): string | null {
+  const t = form.estoque_inicial.trim();
+  if (!t) return null;
+  const n = Number(t.replace(",", "."));
+  if (!Number.isFinite(n)) return t;
+  if (n <= 0) return "Sem estoque";
+  if (n === 1) return "1 unidade";
+  return `${Math.floor(n)} unidades`;
+}
+
+/** Atualiza a visão de detalhe usada na página usando apenas edição local. */
+export function applyProdutoSellerEditFormToDetalheView(
+  base: ProdutoDetalheView,
+  form: ProdutoSellerEditFormValues
+): ProdutoDetalheView {
+  const titulo = form.titulo.trim() || base.titulo;
+  const descricao = form.descricao.trim() || null;
+  const precoTexto = precoDisplayFromFormulario(form);
+  const estoqueTexto = estoqueTextoFromFormulario(form);
+
+  return {
+    ...base,
+    titulo,
+    descricao,
+    precoTexto: precoTexto ?? base.precoTexto,
+    condicao: form.condicao,
+    estoqueTexto: form.estoque_inicial.trim()
+      ? estoqueTexto ?? base.estoqueTexto
+      : base.estoqueTexto,
   };
 }
 

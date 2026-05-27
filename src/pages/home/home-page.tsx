@@ -199,7 +199,7 @@ function parsePositiveFloat(value: string): number | undefined {
 
 const CONDICAO_FILTER_OPTIONS = [
   { value: "novo", label: "Novo" },
-  { value: "seminovo", label: "Seminovo" },
+  { value: "semi-novo", label: "Semi-novo" },
   { value: "usado", label: "Usado" },
 ] as const;
 
@@ -301,19 +301,17 @@ function FilterDropdownField({
   );
 }
 
-/** Exibe preço no estilo da busca: R$ e centavos menores, inteiro em destaque. */
-function PrecoBusca({
-  precoTexto,
-  className,
+function PrecoBuscaValor({
+  raw,
+  variant,
 }: {
-  precoTexto: string | null;
-  className?: string;
+  raw: string;
+  variant: "atual" | "original";
 }) {
-  const raw = precoTexto?.trim();
-  if (!raw) {
+  if (variant === "original") {
     return (
-      <p className={cn("mt-3 text-sm font-medium text-gray-500", className)}>
-        Preço sob consulta
+      <p className="text-sm font-medium leading-tight text-gray-400 line-through">
+        {raw}
       </p>
     );
   }
@@ -322,12 +320,7 @@ function PrecoBusca({
   if (m) {
     const [, intPart, decPart] = m;
     return (
-      <div
-        className={cn(
-          "mt-3 flex items-start justify-center gap-0.5 text-[#09bc8a]",
-          className,
-        )}
-      >
+      <div className="flex items-start justify-center gap-0.5 text-[#09bc8a]">
         <span className="translate-y-0.5 text-[0.65rem] font-bold leading-none sm:text-xs">
           R$
         </span>
@@ -344,14 +337,36 @@ function PrecoBusca({
   }
 
   return (
-    <p
-      className={cn(
-        "mt-3 text-xl font-bold leading-tight text-[#09bc8a] sm:text-2xl",
-        className,
-      )}
-    >
-      {raw}
-    </p>
+    <p className="text-xl font-bold leading-tight text-[#09bc8a] sm:text-2xl">{raw}</p>
+  );
+}
+
+/** Exibe preço no estilo da busca: R$ e centavos menores, inteiro em destaque. */
+function PrecoBusca({
+  precoTexto,
+  precoOriginalTexto,
+  className,
+}: {
+  precoTexto: string | null;
+  precoOriginalTexto?: string | null;
+  className?: string;
+}) {
+  const raw = precoTexto?.trim();
+  const originalRaw = precoOriginalTexto?.trim();
+
+  if (!raw) {
+    return (
+      <p className={cn("mt-3 text-sm font-medium text-gray-500", className)}>
+        Preço sob consulta
+      </p>
+    );
+  }
+
+  return (
+    <div className={cn("mt-3 flex flex-col items-center gap-1", className)}>
+      {originalRaw ? <PrecoBuscaValor raw={originalRaw} variant="original" /> : null}
+      <PrecoBuscaValor raw={raw} variant="atual" />
+    </div>
   );
 }
 
@@ -427,7 +442,11 @@ function HomeBuscaProdutoCard({
           {p.titulo}
         </Link>
 
-        <PrecoBusca precoTexto={p.precoTexto} className="mt-0" />
+        <PrecoBusca
+          precoTexto={p.precoTexto}
+          precoOriginalTexto={p.precoOriginalTexto}
+          className="mt-0"
+        />
       </div>
 
       <button
@@ -939,7 +958,7 @@ const AuthenticatedHome = () => {
 
       <main className="mt-[60px]">
         <section id="home" className="relative max-md:mb-28 md:mb-32">
-          <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px]">
+          <div className="relative w-full h-[300px] overflow-visible sm:h-[400px] md:h-[500px]">
             <img
               src="/img/fundo-home.png"
               alt="Fundo"
@@ -948,14 +967,14 @@ const AuthenticatedHome = () => {
             />
 
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center px-4">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-[40px] font-bold font-gill-sans mb-4 sm:mb-6 md:mb-8">
-                Seu principal marketplace de bikes
+              <h1 className="home-hero-ranade-title text-2xl sm:text-3xl md:text-4xl lg:text-[40px] font-bold mb-4 sm:mb-6 md:mb-8">
+                SEU PRINCIPAL MARKETPLACE DE BIKES
               </h1>
             </div>
 
-            <div className="absolute -bottom-12 sm:-bottom-16 left-0 right-0 z-[50] px-4 sm:px-6">
-              <div className="bg-white rounded-xl shadow-lg w-full max-w-[750px] mx-auto">
-                <div className="flex w-full h-[35px] sm:h-[40px] rounded-tl-lg overflow-hidden">
+            <div className="absolute -bottom-12 left-0 right-0 z-[60] px-4 sm:-bottom-16 sm:px-6">
+              <div className="mx-auto w-full max-w-[850px] overflow-visible rounded-xl bg-white shadow-lg">
+                <div className="flex h-[38px] w-full overflow-hidden rounded-t-xl sm:h-[42px]">
                   <button
                     className={`flex-1 font-bold text-sm sm:text-base transition-colors ${
                       activeTab === "tab1"
@@ -977,25 +996,15 @@ const AuthenticatedHome = () => {
                   >
                     Peças e acessórios
                   </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    disabled={loadingProdutos}
-                    onClick={() => submitSearch()}
-                    className="w-[110px] sm:w-[160px] bg-gradient-to-r from-[#09bc8a] to-[#0c1b33] text-white font-bold flex items-center justify-center gap-2 hover:from-[#08ab7d] hover:to-[#0a172e] rounded-tr-lg text-sm sm:text-base disabled:opacity-60 disabled:pointer-events-none"
-                  >
-                    <FaMagnifyingGlass className="text-lg sm:text-xl" />
-                    <span>Pesquisar</span>
-                  </button>
-                </div>
-
-                <div className="relative p-3 sm:p-4">
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-1 relative">
+                <div className="relative overflow-visible rounded-b-xl bg-white p-4 sm:p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">
                       <input
                         type="search"
                         placeholder="Digite aqui o que você procura..."
-                        className="w-full h-[40px] sm:h-[44px] px-4 rounded-lg border border-gray-200 text-sm sm:text-base focus:outline-none  bg-white"
+                        className="w-full h-11 sm:h-12 px-4 rounded-lg border border-gray-200 text-sm sm:text-base focus:outline-none bg-white"
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         onKeyDown={(e) => {
@@ -1004,11 +1013,12 @@ const AuthenticatedHome = () => {
                       />
                     </div>
 
-                    <div ref={filterWrapRef} className="relative">
+                    <div className="flex shrink-0 items-center gap-2">
+                    <div ref={filterWrapRef} className="relative z-20">
                       <button
                         type="button"
                         onClick={() => setShowFilters((v) => !v)}
-                        className={`h-[40px] sm:h-[44px] px-3 sm:px-4 rounded-lg border text-sm font-semibold flex items-center gap-2 transition-colors
+                        className={`h-11 sm:h-12 px-3 sm:px-4 rounded-lg border text-sm font-semibold flex items-center gap-2 transition-colors
                         ${
                           showFilters
                             ? "border-[#09bc8a] text-[#09bc8a] bg-[#09bc8a]/5"
@@ -1034,7 +1044,7 @@ const AuthenticatedHome = () => {
                       </button>
 
                       {showFilters && (
-                        <div className="absolute -right-3 mt-2 z-[60] w-[290px] sm:w-[400px]">
+                        <div className="absolute right-0 top-full z-[70] mt-2 w-[min(calc(100vw-2rem),290px)] max-sm:left-0 max-sm:right-0 max-sm:w-full sm:w-[400px]">
                           <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
                             <div className="px-5 py-4 flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -1218,23 +1228,16 @@ const AuthenticatedHome = () => {
                         </div>
                       )}
                     </div>
-                  </div>
-
-                  <div className="mt-2 text-[12px] text-gray-500 flex items-center justify-between">
-                    <span>
-                      Dica: pressione{" "}
-                      <span className="font-semibold">Enter</span> para
-                      pesquisar
-                    </span>
-                    {activeFiltersCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={clearFilters}
-                        className="text-[#09bc8a] font-semibold hover:underline"
-                      >
-                        Limpar filtros
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={loadingProdutos}
+                      onClick={() => submitSearch()}
+                      className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#078f6f] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#067a60] disabled:pointer-events-none disabled:opacity-60 sm:h-12 sm:flex-none sm:px-4"
+                    >
+                      <FaMagnifyingGlass className="h-4 w-4 shrink-0" />
+                      <span>Pesquisar</span>
+                    </button>
+                    </div>
                   </div>
                 </div>
               </div>

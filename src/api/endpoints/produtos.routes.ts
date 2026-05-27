@@ -1,5 +1,6 @@
 import api from "@/api/axiosInstance";
 import type {
+  ProdutoCondicao,
   ProdutoCreateMeta,
   ProdutoListagemItem,
   ProdutoListagemResponse,
@@ -9,6 +10,10 @@ export const PRODUTOS_ENDPOINTS = {
   produtos: "/produtos",
   lancamentos: "/produtos/lancamentos",
   produtoById: (produtoId: number | string) => `/produtos/${produtoId}`,
+  produtoImagemById: (produtoId: number | string, imagemId: number | string) =>
+    `/produtos/${produtoId}/imagens/${imagemId}`,
+  produtoEstoqueById: (produtoId: number | string) =>
+    `/produtos/${produtoId}/estoque`,
   perguntasByProdutoId: (produtoId: number | string) =>
     `/produtos/${produtoId}/perguntas`,
   avaliacoesByProdutoId: (produtoId: number | string) =>
@@ -16,6 +21,42 @@ export const PRODUTOS_ENDPOINTS = {
   indexadoresByProdutoId: (produtoId: number | string) =>
     `/produtos/${produtoId}/indexadores`,
 } as const;
+
+/** Campos de produto enviados no campo `meta` (JSON) do PUT multipart. */
+export type ProdutoUpdatePayload = {
+  titulo?: string;
+  descricao?: string;
+  preco?: number;
+  preco_promocional?: number | null;
+  condicao?: ProdutoCondicao;
+  categoria_id?: number;
+  marca_id?: number;
+  slug?: string | null;
+  sku?: string | null;
+  peso_gramas?: number | null;
+  altura_cm?: number | null;
+  largura_cm?: number | null;
+  comprimento_cm?: number | null;
+  ativo?: boolean;
+  /**
+   * `false` (padrão): anexa novas imagens mantendo as ativas.
+   * `true`: substitui a galeria ativa pelas imagens enviadas no multipart.
+   */
+  substituir_imagens?: boolean;
+  /** Índice da capa entre os arquivos novos enviados em `imagens` (0-based). */
+  imagem_principal_index?: number | null;
+  /** ID de imagem já ativa para definir capa (sem reenviar arquivos; não usar com `substituir_imagens=true`). */
+  imagem_principal_id?: number | null;
+};
+
+export type ProdutoUpdateMultipartOptions = {
+  imagens?: Array<File | Blob>;
+  file?: File | Blob | null;
+};
+
+export type ProdutoDeleteImagemResponse = {
+  message: string;
+};
 
 export type ListProdutosParams = {
   q?: string;
@@ -111,6 +152,99 @@ export function getProdutoById(produtoId: number | string) {
   return api.get<unknown>(PRODUTOS_ENDPOINTS.produtoById(produtoId));
 }
 
+/**
+ * PUT /v1/produtos/{produto_id} — multipart (`meta` JSON + `imagens`/`file` opcionais).
+ * Rota única de edição e gestão de imagens: anexar (`substituir_imagens=false`),
+ * substituir galeria (`substituir_imagens=true`), capa nova (`imagem_principal_index`)
+ * ou capa existente (`imagem_principal_id`, sem `substituir_imagens=true`).
+ */
+export function updateProduto(
+  produtoId: number | string,
+  meta: ProdutoUpdatePayload,
+  options?: ProdutoUpdateMultipartOptions,
+) {
+  if (meta.substituir_imagens === true && meta.imagem_principal_id != null) {
+    throw new Error(
+      "Não envie `imagem_principal_id` junto com `substituir_imagens=true`.",
+    );
+  }
+
+  const { imagens, file } = options ?? {};
+  if (file && imagens && imagens.length > 0) {
+    throw new Error("Não envie `file` e `imagens` juntos ao atualizar produto.");
+  }
+
+  const formData = new FormData();
+  formData.append("meta", JSON.stringify(meta));
+
+  if (file) {
+    formData.append("file", file);
+  }
+
+  for (const imagem of imagens ?? []) {
+    formData.append("imagens", imagem);
+  }
+
+  return api.put<unknown>(PRODUTOS_ENDPOINTS.produtoById(produtoId), formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
+
+/** DELETE /v1/produtos/{produto_id}/imagens/{imagem_id} */
+export function deleteProdutoImagem(produtoId: number | string, imagemId: number | string) {
+  return api.delete<ProdutoDeleteImagemResponse>(
+    PRODUTOS_ENDPOINTS.produtoImagemById(produtoId, imagemId),
+  );
+}
+
+export type AddProdutoImagensOptions = {
+  /** Índice da capa entre os arquivos enviados neste request (0-based). */
+  imagem_principal_index?: number | null;
+  /**
+   * Padrão `false`: anexa novas imagens ativas sem desativar as atuais.
+   * Use `true` apenas para substituir toda a galeria ativa.
+   */
+  substituir_imagens?: boolean;
+};
+
+/**
+ * Envia imagens via PUT multipart.
+ * Padrão: `substituir_imagens=false` (anexa mantendo imagens ativas).
+ */
+export function addProdutoImagens(
+  produtoId: number | string,
+  formData: FormData,
+  options?: AddProdutoImagensOptions,
+) {
+  const imagens: File[] = [];
+  for (const value of formData.getAll("imagens")) {
+    if (value instanceof File) imagens.push(value);
+  }
+  if (!imagens.length) {
+    throw new Error("Nenhuma imagem para enviar.");
+  }
+
+  const substituirImagens = options?.substituir_imagens ?? false;
+  const meta: ProdutoUpdatePayload = { substituir_imagens: substituirImagens };
+  const capaIndex = options?.imagem_principal_index;
+  if (capaIndex != null && capaIndex >= 0) {
+    meta.imagem_principal_index = capaIndex;
+  }
+
+  return updateProduto(produtoId, meta, { imagens });
+}
+
+/**
+ * PUT /v1/produtos/{produto_id}/estoque — use somente com payload confirmado pelo backend.
+ * Documentação local do payload ainda não está consolidada no frontend.
+ */
+export function updateProdutoEstoque(
+  produtoId: number | string,
+  payload: Record<string, unknown>,
+) {
+  return api.put<unknown>(PRODUTOS_ENDPOINTS.produtoEstoqueById(produtoId), payload);
+}
+
 type CreateProdutoMultipartInput = {
   meta: ProdutoCreateMeta;
   file?: File | Blob | null;
@@ -118,6 +252,13 @@ type CreateProdutoMultipartInput = {
 };
 
 /** POST /v1/produtos — cria produto via multipart/form-data. */
+export function createProduto(formData: FormData) {
+  return api.post<unknown>(PRODUTOS_ENDPOINTS.produtos, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
+
+/** POST /v1/produtos — cria produto via multipart/form-data (meta + imagens). */
 export function createProdutoMultipart({
   meta,
   file,
@@ -138,13 +279,12 @@ export function createProdutoMultipart({
     formData.append("imagens", imagem);
   }
 
-  return api.post<unknown>(PRODUTOS_ENDPOINTS.produtos, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  return createProduto(formData);
 }
 
-export type AddProdutoIndexadoresPayload = {
-  indexadores: string[];
+export type ProdutoIndexadorCampoValor = {
+  campo: string;
+  valor: string;
 };
 
 export type ProdutoIndexador = {
@@ -157,14 +297,14 @@ export type ProdutoIndexador = {
   criado_em: string;
 };
 
-/** POST /v1/produtos/{produto_id}/indexadores */
-export function addProdutoIndexadores(
+/** POST /v1/produtos/{produto_id}/indexadores — corpo: lista de { campo, valor }. */
+export function postProdutoIndexadores(
   produtoId: number | string,
-  payload: AddProdutoIndexadoresPayload
+  indexadores: ProdutoIndexadorCampoValor[],
 ) {
-  return api.post<ProdutoIndexador[]>(
+  return api.post<unknown>(
     PRODUTOS_ENDPOINTS.indexadoresByProdutoId(produtoId),
-    payload
+    indexadores,
   );
 }
 
