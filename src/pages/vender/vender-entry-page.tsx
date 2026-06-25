@@ -40,7 +40,7 @@ export default function VenderEntryPage() {
         if (cancelled) return;
 
         if (res.status === 404) {
-          navigate(paths.minhaLoja(), { replace: true });
+          navigate(paths.venderAnunciar(), { replace: true });
           return;
         }
 

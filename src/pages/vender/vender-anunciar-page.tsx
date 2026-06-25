@@ -23,6 +23,7 @@ import {
   MAIN_CATEGORY_SLUGS,
   type MainCategorySlug,
 } from "@/pages/vender/category-product-requirements";
+import { VenderCreateForm } from "@/pages/vender/vender-create-form";
 import { useVenderCreateSellerGate } from "@/pages/vender/use-vender-create-seller-gate";
 import type { CategoriaPai } from "@/types/categoria";
 
@@ -102,10 +103,13 @@ export default function VenderAnunciarPage() {
     );
   };
 
-  const showLoading =
+  const showSellerCheckLoading =
     gate.awaitingAuthBootstrap ||
-    (gate.isAuthenticated && gate.loading && !gate.loadError) ||
-    (gate.canCreate && catalogLoading);
+    (gate.isAuthenticated && gate.loading && !gate.loadError && !gate.needsSellerAccount);
+
+  const showCatalogLoading = gate.canCreate && catalogLoading;
+
+  const showLoading = showSellerCheckLoading || showCatalogLoading;
 
   const showMainContent =
     gate.bootstrapped &&
@@ -126,9 +130,17 @@ export default function VenderAnunciarPage() {
               className="flex flex-col items-center gap-4 text-center"
             >
               <Loader2 className="size-10 animate-spin text-[#09bc8a]" aria-hidden />
-              <p className="text-sm font-medium text-slate-600">Carregando categorias…</p>
+              <p className="text-sm font-medium text-slate-600">
+                {showCatalogLoading
+                  ? "Carregando categorias…"
+                  : "Verificando sua conta de vendedor…"}
+              </p>
             </div>
           </div>
+        ) : null}
+
+        {gate.needsSellerAccount ? (
+          <VenderCreateForm onCreated={gate.handleSellerCreated} />
         ) : null}
 
         {gate.needLogin ? (

@@ -19,6 +19,7 @@ const PUBLIC_PATHS = new Set([
 function isPublicPath(pathname: string) {
   if (PUBLIC_PATHS.has(pathname)) return true;
   if (pathname.startsWith("/resetPassword")) return true;
+  if (pathname === "/produtos" || pathname.startsWith("/produtos/")) return true;
   return false;
 }
 

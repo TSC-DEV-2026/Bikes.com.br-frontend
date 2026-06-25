@@ -21,6 +21,7 @@ import ResetPasswordPage from "@/pages/reset-password/reset-password-page";
 import EditAddressPage from "@/pages/edit-address/edit-address-page";
 import ProductsPage from "@/pages/products/products-page";
 import ProductDetailPage from "@/pages/product-detail/product-detail-page";
+import ProductDetailRoute from "@/pages/product-detail/product-detail-route";
 import FavoritesPage from "@/pages/favorites/favorites-page";
 import CartPage from "@/pages/cart/cart-page";
 
@@ -93,7 +94,7 @@ export function AppRoutes() {
         <Route path="/resetPassword" element={<ResetPasswordPage />} />
         <Route path="/editAddress/:id" element={<EditAddressPage />} />
         <Route path="/produtos" element={<ProductsPage />} />
-        <Route path="/produtos/:id" element={<ProductDetailPage />} />
+        <Route path="/produtos/:id" element={<ProductDetailRoute />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/carrinho" element={<CartPage />} />
       </Routes>

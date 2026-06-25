@@ -17,6 +17,14 @@ export type GetMinhasSubcategoriasParams = {
   ativo?: boolean;
 };
 
+export type CategoriaDetail = {
+  id: number;
+  nome: string;
+  slug: string;
+  ativo: boolean;
+  categoria_pai_id: number | null;
+};
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -113,10 +121,36 @@ function normalizeSubcategorias(data: unknown): Subcategoria[] {
   return out.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
+function parseCategoriaDetail(row: unknown): CategoriaDetail | null {
+  if (!isRecord(row)) return null;
+  const id = parseId(row.id);
+  const nome = typeof row.nome === "string" ? row.nome.trim() : "";
+  const slug = typeof row.slug === "string" ? row.slug.trim() : "";
+  const categoriaPaiId = parseId(row.categoria_pai_id) ?? parseId(row.pai_id);
+  if (id == null || !nome) return null;
+  return {
+    id,
+    nome,
+    slug: slug || String(id),
+    ativo: row.ativo !== false,
+    categoria_pai_id: categoriaPaiId,
+  };
+}
+
 /** GET /v1/categorias — categorias pai da plataforma. */
 export async function getCategoriasPai(): Promise<CategoriaPai[]> {
   const res = await api.get<unknown>(CATEGORIAS_ENDPOINTS.root);
   return normalizeCategoriasPai(res.data);
+}
+
+/** GET /v1/categorias/{id} — categoria pai ou subcategoria (público). */
+export async function getCategoriaById(id: number | string): Promise<CategoriaDetail> {
+  const res = await api.get<unknown>(`${CATEGORIAS_ENDPOINTS.root}/${id}`);
+  const parsed = parseCategoriaDetail(res.data);
+  if (!parsed) {
+    throw new Error("Resposta inválida ao buscar categoria.");
+  }
+  return parsed;
 }
 
 /** GET /v1/categorias/subcategoria — subcategorias do vendedor autenticado. */

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { vendedoresRoutes, paths } from "@/api/endpoints";
 import { useAuth } from "@/contexts/auth-context";
+import { notifySellerNavChanged } from "@/hooks/use-seller-nav";
 import { getAxiosErrorMessage } from "@/lib/api-error";
 import { parseVendedor, type Vendedor } from "@/types/vendedor";
 
@@ -12,14 +13,17 @@ export function useVenderCreateSellerGate() {
   const [vendedor, setVendedor] = useState<Vendedor | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsSellerAccount, setNeedsSellerAccount] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
+    setNeedsSellerAccount(false);
     setLoading(true);
     try {
       const res = await vendedoresRoutes.getMeuVendedor();
       if (res.status === 404) {
-        navigate(paths.minhaLoja(), { replace: true });
+        setVendedor(null);
+        setNeedsSellerAccount(true);
         return;
       }
       if (res.status !== 200) {
@@ -53,6 +57,14 @@ export function useVenderCreateSellerGate() {
     }
   }, [navigate]);
 
+  const handleSellerCreated = useCallback((v: Vendedor) => {
+    setVendedor(v);
+    setNeedsSellerAccount(false);
+    setLoadError(null);
+    setLoading(false);
+    notifySellerNavChanged();
+  }, []);
+
   useEffect(() => {
     if (!bootstrapped || !isAuthenticated) return;
     void load();
@@ -75,11 +87,13 @@ export function useVenderCreateSellerGate() {
     loadError,
     loading,
     load,
+    handleSellerCreated,
     awaitingAuthBootstrap,
     needLogin,
     blocked,
     pending,
     canCreate,
+    needsSellerAccount,
     showContaIndisponivel,
   };
 }

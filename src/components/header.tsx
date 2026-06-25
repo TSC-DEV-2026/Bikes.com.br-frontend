@@ -9,8 +9,11 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { paths } from "@/api/endpoints";
 import { useAuth } from "@/contexts/auth-context";
+import { useSellerNav } from "@/hooks/use-seller-nav";
 import { useCart } from "@/contexts/cart-context";
 import { useFavoritesCount } from "@/contexts/favorites-count-context";
+import { PublicMarketplaceHeader } from "@/components/public-marketplace-header";
+import { isPublicMarketplacePath } from "@/lib/public-marketplace-routes";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -303,7 +306,22 @@ function HeaderNavLink({ to, active, onClick, children }: HeaderNavLinkProps) {
 
 export function Header() {
   const { pathname } = useLocation();
+  const { isAuthenticated, bootstrapped } = useAuth();
+
+  const showPublicMarketplaceHeader =
+    isPublicMarketplacePath(pathname) && (!bootstrapped || !isAuthenticated);
+
+  if (showPublicMarketplaceHeader) {
+    return <PublicMarketplaceHeader />;
+  }
+
+  return <AuthenticatedHeader />;
+}
+
+function AuthenticatedHeader() {
+  const { pathname } = useLocation();
   const { user, isAuthenticated, logout, bootstrapped } = useAuth();
+  const { hasSeller, ready: sellerNavReady } = useSellerNav();
   const { totalQuantity } = useCart();
   const { unseenFavoriteCount, favoritesBadgeVisible } = useFavoritesCount();
 
@@ -319,6 +337,8 @@ export function Header() {
     mounted && bootstrapped && isAuthenticated && totalQuantity > 0;
 
   const homePath = mounted && bootstrapped && isAuthenticated ? "/home" : "/";
+  const showMinhaLoja =
+    mounted && bootstrapped && isAuthenticated && sellerNavReady && hasSeller;
 
   return (
     <header className="fixed top-0 left-0 z-50 flex min-w-0 w-full items-center justify-between gap-2 bg-white p-4 shadow-md sm:gap-4">
@@ -330,7 +350,7 @@ export function Header() {
         <HeaderDesktopNav
           pathname={pathname}
           homePath={homePath}
-          showMinhaLoja={mounted && bootstrapped && isAuthenticated}
+          showMinhaLoja={showMinhaLoja}
         />
       </nav>
 
@@ -514,7 +534,7 @@ export function Header() {
                 <HiUsers />
                 <span>Vender</span>
               </HeaderNavLink>
-              {mounted && bootstrapped && isAuthenticated ? (
+              {showMinhaLoja ? (
                 <HeaderNavLink
                   to={paths.minhaLoja()}
                   active={isNavItemActive("minhaLoja", pathname)}

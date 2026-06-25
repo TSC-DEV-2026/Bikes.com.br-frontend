@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
 import { vendedoresRoutes, paths } from "@/api/endpoints";
@@ -17,15 +17,15 @@ import { useAuth } from "@/contexts/auth-context";
 import { getAxiosErrorMessage } from "@/lib/api-error";
 import { parseVendedor, type Vendedor } from "@/types/vendedor";
 
-import { VenderCreateForm } from "./vender-create-form";
 import { VenderPanel } from "./vender-panel";
 
-type Phase = "loading" | "create" | "panel";
+type Phase = "loading" | "panel";
 
 type LocationState = { aviso?: string } | null;
 
 export default function MinhaLojaPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { bootstrapped, isAuthenticated } = useAuth();
   const [phase, setPhase] = useState<Phase>("loading");
   const [vendedor, setVendedor] = useState<Vendedor | null>(null);
@@ -53,8 +53,7 @@ export default function MinhaLojaPage() {
         return;
       }
       if (res.status === 404) {
-        setVendedor(null);
-        setPhase("create");
+        navigate(paths.venderAnunciar(), { replace: true });
         return;
       }
       setLoadError(`Resposta inesperada (HTTP ${res.status}).`);
@@ -63,7 +62,7 @@ export default function MinhaLojaPage() {
       setLoadError(getAxiosErrorMessage(e));
       setPhase("loading");
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (!bootstrapped || !isAuthenticated) return;
@@ -72,14 +71,14 @@ export default function MinhaLojaPage() {
 
   const awaitingAuthBootstrap = !bootstrapped;
   const needLogin = bootstrapped && !isAuthenticated;
-  const hidePageTitleForSellerCreate =
-    isAuthenticated && !awaitingAuthBootstrap && phase === "create" && !loadError;
+  const showPanelHeader =
+    isAuthenticated && !awaitingAuthBootstrap && phase === "panel" && !loadError;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50/60">
       <Header />
       <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-6 px-4 py-6 pt-24 sm:gap-8 sm:px-6 sm:py-8 sm:pt-28 lg:px-8">
-        {!hidePageTitleForSellerCreate ? (
+        {showPanelHeader ? (
           <header className="flex flex-col gap-4 border-b border-slate-200/80 pb-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 space-y-2">
               <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
@@ -121,9 +120,13 @@ export default function MinhaLojaPage() {
         )}
 
         {!awaitingAuthBootstrap && isAuthenticated && phase === "loading" && !loadError && (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+          <div
+            className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground"
+            aria-busy="true"
+            aria-label="Carregando"
+          >
             <Loader2 className="size-10 animate-spin text-[#09bc8a]" aria-hidden />
-            <p className="text-sm">Carregando dados da loja…</p>
+            <p className="text-sm">Carregando…</p>
           </div>
         )}
 
@@ -146,15 +149,6 @@ export default function MinhaLojaPage() {
               </Button>
             </CardFooter>
           </Card>
-        )}
-
-        {!awaitingAuthBootstrap && isAuthenticated && phase === "create" && !loadError && (
-          <VenderCreateForm
-            onCreated={(v) => {
-              setVendedor(v);
-              setPhase("panel");
-            }}
-          />
         )}
 
         {!awaitingAuthBootstrap && isAuthenticated && phase === "panel" && vendedor && !loadError && (

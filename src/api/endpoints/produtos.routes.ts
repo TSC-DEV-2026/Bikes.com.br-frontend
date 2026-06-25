@@ -58,6 +58,36 @@ export type ProdutoDeleteImagemResponse = {
   message: string;
 };
 
+/** Valores aceitos por GET /produtos?ordenacao= (contrato FastAPI). */
+export const PRODUTOS_LIST_ORDENACAO_VALUES = [
+  "recentes",
+  "menor_preco",
+  "maior_preco",
+] as const;
+
+export type ProdutosListOrdenacao =
+  (typeof PRODUTOS_LIST_ORDENACAO_VALUES)[number];
+
+const LEGACY_ORDENACAO_TO_API: Record<string, ProdutosListOrdenacao> = {
+  preco_asc: "menor_preco",
+  preco_desc: "maior_preco",
+};
+
+/** Normaliza `ordenacao` da URL ou UI para o literal aceito pela API. */
+export function normalizeProdutosListOrdenacao(
+  raw: string | undefined | null,
+): ProdutosListOrdenacao | undefined {
+  const o = raw?.trim();
+  if (!o) return undefined;
+  if (o === "recentes") return "recentes";
+  if (
+    (PRODUTOS_LIST_ORDENACAO_VALUES as readonly string[]).includes(o)
+  ) {
+    return o as ProdutosListOrdenacao;
+  }
+  return LEGACY_ORDENACAO_TO_API[o];
+}
+
 export type ListProdutosParams = {
   q?: string;
   /** Termos para busca por indexador (ex.: `mtb,trilha,aro 29`). */
@@ -113,8 +143,9 @@ export function compactListProdutosParams(
     out.vendedor_id = params.vendedor_id;
   }
 
-  const ordenacao = params.ordenacao?.trim();
-  if (ordenacao) out.ordenacao = ordenacao;
+  const ordenacao =
+    normalizeProdutosListOrdenacao(params.ordenacao) ?? "recentes";
+  out.ordenacao = ordenacao;
 
   if (params.page != null && Number.isFinite(params.page) && params.page >= 1) {
     out.page = params.page;

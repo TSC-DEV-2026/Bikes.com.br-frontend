@@ -26,6 +26,7 @@ import {
 import { venderProdutoSecondaryButtonClass } from "@/pages/vender/vender-produto-editor-utils";
 import { cn } from "@/lib/utils";
 import { useVenderCreateSellerGate } from "@/pages/vender/use-vender-create-seller-gate";
+import { VenderCreateForm } from "@/pages/vender/vender-create-form";
 
 const STEPS = [
   {
@@ -286,7 +287,7 @@ export default function VenderProdutoCreateIntroPage() {
 
   const showLoading =
     gate.awaitingAuthBootstrap ||
-    (gate.bootstrapped && gate.isAuthenticated && gate.loading && !gate.loadError);
+    (gate.bootstrapped && gate.isAuthenticated && gate.loading && !gate.loadError && !gate.needsSellerAccount);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
@@ -303,6 +304,10 @@ export default function VenderProdutoCreateIntroPage() {
               <p className="text-sm font-medium text-slate-600">Verificando sua loja…</p>
             </div>
           </div>
+        ) : null}
+
+        {gate.needsSellerAccount ? (
+          <VenderCreateForm onCreated={gate.handleSellerCreated} />
         ) : null}
 
         {gate.needLogin ? (

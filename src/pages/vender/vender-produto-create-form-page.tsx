@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { toMainCategorySlug } from "@/pages/vender/category-product-requirements";
 import { useVenderCreateSellerGate } from "@/pages/vender/use-vender-create-seller-gate";
+import { VenderCreateForm } from "@/pages/vender/vender-create-form";
 import { VenderProdutoCreateWizard } from "@/pages/vender/vender-produto-create-wizard";
 
 function parseCategoriaIdParam(raw: string | null): number | null {
@@ -73,7 +74,7 @@ export default function VenderProdutoCreateFormPage() {
           <div className="w-full min-w-0 pb-8 sm:pb-16">
             <div className="w-full min-w-0">
             {gate.awaitingAuthBootstrap ||
-            (gate.isAuthenticated && gate.loading && !gate.loadError) ? (
+            (gate.isAuthenticated && gate.loading && !gate.loadError && !gate.needsSellerAccount) ? (
               <div
                 role="status"
                 aria-busy="true"
@@ -86,6 +87,10 @@ export default function VenderProdutoCreateFormPage() {
                   </p>
                 </div>
               </div>
+            ) : null}
+
+            {gate.needsSellerAccount ? (
+              <VenderCreateForm onCreated={gate.handleSellerCreated} />
             ) : null}
 
             {gate.loadError ? (

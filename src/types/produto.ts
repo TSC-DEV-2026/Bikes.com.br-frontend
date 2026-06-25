@@ -98,6 +98,14 @@ export type ProdutoListaView = {
   precoOriginalTexto: string | null;
   imagemUrl: string | null;
   statusOuCondicao: string | null;
+  /** Rótulo de condição (`condicao`), quando a API envia. */
+  condicaoLabel?: string | null;
+  /** Nome da categoria, quando a API envia. */
+  categoriaLabel?: string | null;
+  /** Cidade/UF resumidos, quando a API envia. */
+  localizacaoLabel?: string | null;
+  /** Publicação relativa (ex.: "Há 2 dias"), quando a API envia data. */
+  publicadoLabel?: string | null;
 };
 
 /** Item de `indexadores` no GET público do produto (`{ campo, valor }`). */
@@ -329,6 +337,104 @@ function extractStatusOuCondicao(record: Record<string, unknown>): string | null
   ]);
 }
 
+function extractListaCondicaoLabel(
+  record: Record<string, unknown>,
+): string | null {
+  const raw = pickString(record, [
+    "condicao",
+    "condição",
+    "condicao_produto",
+    "estado_conservacao",
+  ]);
+  if (!raw) return null;
+  return formatProdutoCondicaoLabel(raw);
+}
+
+function extractListaCategoriaLabel(
+  record: Record<string, unknown>,
+): string | null {
+  const nested = record.categoria ?? record.categoria_data ?? record.subcategoria;
+  if (isRecord(nested)) {
+    return pickString(nested, ["nome", "titulo", "name", "label"]);
+  }
+  return pickString(record, [
+    "categoria_nome",
+    "nome_categoria",
+    "subcategoria_nome",
+    "categoria_label",
+  ]);
+}
+
+function extractListaLocalizacaoLabel(
+  record: Record<string, unknown>,
+): string | null {
+  const cidade = pickString(record, [
+    "cidade",
+    "cidade_nome",
+    "nome_cidade",
+    "localidade",
+  ]);
+  const uf = pickString(record, ["uf", "estado_sigla", "sigla_estado"]);
+  const estadoNome = pickString(record, ["estado", "estado_nome", "nome_estado"]);
+  const ufOuEstado = uf ?? estadoNome;
+
+  if (cidade && ufOuEstado) {
+    if (ufOuEstado.length <= 3) return `${cidade} - ${ufOuEstado.toUpperCase()}`;
+    return `${cidade} - ${ufOuEstado}`;
+  }
+  if (cidade) return cidade;
+  if (ufOuEstado) return ufOuEstado;
+
+  return pickString(record, ["localizacao", "localização", "endereco_resumo"]);
+}
+
+/** Texto relativo de publicação a partir de timestamp ISO da API. */
+export function formatProdutoPublicadoRelativo(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw?.trim()) return null;
+  const d = new Date(raw.trim());
+  if (Number.isNaN(d.getTime())) return null;
+
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return null;
+
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "Agora mesmo";
+  if (minutes < 60) return `Há ${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Há ${hours} h`;
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Ontem";
+  if (days < 7) return `Há ${days} dias`;
+  if (days < 30) {
+    const weeks = Math.floor(days / 7);
+    return weeks === 1 ? "Há 1 semana" : `Há ${weeks} semanas`;
+  }
+
+  try {
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(d);
+  } catch {
+    return null;
+  }
+}
+
+function extractListaPublicadoLabel(
+  record: Record<string, unknown>,
+): string | null {
+  const raw = pickString(record, [
+    "criado_em",
+    "created_at",
+    "publicado_em",
+    "data_criacao",
+    "data_publicacao",
+    "atualizado_em",
+  ]);
+  return formatProdutoPublicadoRelativo(raw);
+}
+
 function fallbackTitulo(record: Record<string, unknown>): string {
   const t = pickString(record, [
     "titulo",
@@ -376,6 +482,10 @@ export function itemUnknownToListaView(item: unknown): ProdutoListaView | null {
     precoOriginalTexto,
     imagemUrl,
     statusOuCondicao,
+    condicaoLabel: extractListaCondicaoLabel(item),
+    categoriaLabel: extractListaCategoriaLabel(item),
+    localizacaoLabel: extractListaLocalizacaoLabel(item),
+    publicadoLabel: extractListaPublicadoLabel(item),
   };
 }
 

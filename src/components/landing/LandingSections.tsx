@@ -1,8 +1,18 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/auth-context";
+import { listLancamentos } from "@/api/endpoints/produtos.routes";
+import { paths } from "@/api/endpoints/paths";
+import { catalogUrl } from "@/lib/search-query-params";
+import {
+  itemUnknownToListaView,
+  type ProdutoListagemItem,
+} from "@/types/produto";
+import { ProdutoVitrineCard } from "@/components/produto/produto-vitrine-card";
+import { cn } from "@/lib/utils";
 import {
   FaBolt,
   FaShieldHalved,
@@ -50,20 +60,20 @@ type BenefitCardProps = {
 
 function BenefitCard({ icon, title, text }: BenefitCardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#09bc8a]/40 hover:shadow-xl">
+    <div className="group relative flex h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#09bc8a]/40 hover:shadow-xl">
       <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-[#09bc8a]/10 blur-2xl transition group-hover:bg-[#09bc8a]/20" />
 
-      <div className="relative flex items-start gap-5">
+      <div className="relative flex flex-1 items-start gap-5">
         <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#09bc8a]/10 text-[#09bc8a] ring-1 ring-[#09bc8a]/20 [&_svg]:h-6 [&_svg]:w-6">
           {icon}
         </div>
 
-        <div>
+        <div className="flex min-w-0 flex-1 flex-col">
           <h3 className="text-base font-black leading-tight text-[#0c1b33]">
             {title}
           </h3>
 
-          <p className="mt-3 text-sm leading-7 text-slate-600">{text}</p>
+          <p className="mt-3 flex-1 text-sm leading-7 text-slate-600">{text}</p>
         </div>
       </div>
     </div>
@@ -78,14 +88,15 @@ export function BenefitsSection() {
     <section id="como-funciona" className="relative overflow-hidden bg-white">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
-      <div className="mx-auto max-w-[1180px] px-5 py-11 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1180px] px-5 py-8 sm:px-6 sm:py-10 lg:px-8">
         <SectionTitle
           eyebrow="Por que Bikes.com.br?"
           title="Um marketplace pensado para ciclistas"
         />
 
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid auto-rows-fr gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Card
+            className="h-full"
             {...(reducedMotion
               ? {}
               : {
@@ -103,6 +114,7 @@ export function BenefitsSection() {
           </Card>
 
           <Card
+            className="h-full"
             {...(reducedMotion
               ? {}
               : {
@@ -124,6 +136,7 @@ export function BenefitsSection() {
           </Card>
 
           <Card
+            className="h-full"
             {...(reducedMotion
               ? {}
               : {
@@ -154,7 +167,7 @@ const categories = [
     title: "Bikes",
     desc: "MTB, Speed, Urbana e mais",
     icon: <FaBicycle />,
-    href: "/home?q=bikes",
+    href: catalogUrl(paths.produtos(), { q: "bikes" }),
     action: "Ver bikes",
     image: "/img/03_categoria_bikes.png",
   },
@@ -162,7 +175,7 @@ const categories = [
     title: "Peças",
     desc: "Transmissão, freios e rodas",
     icon: <FaGear />,
-    href: "/home?q=peças",
+    href: catalogUrl(paths.produtos(), { q: "peças" }),
     action: "Ver peças",
     image: "/img/04_categoria_pecas.png",
   },
@@ -170,21 +183,20 @@ const categories = [
     title: "Acessórios",
     desc: "Luzes, suportes e bags",
     icon: <FaLock />,
-    href: "/home?q=acessórios",
+    href: catalogUrl(paths.produtos(), { q: "acessórios" }),
     action: "Ver acessórios",
     image: "/img/05_categoria_acessorios.png",
   },
 ] as const;
 
 export function CategoriesSection() {
-  const { bootstrapped, isAuthenticated } = useAuth();
   const reducedMotion = useReducedMotion();
 
   return (
     <section className="relative overflow-hidden bg-[#eefbf8]">
       <div className="absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-[#09bc8a]/10 blur-3xl" />
 
-      <div className="relative mx-auto max-w-[1240px] px-5 py-10 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-[1240px] px-5 py-6 sm:px-6 sm:py-8 lg:px-8">
         <SectionTitle
           eyebrow="Explore"
           title="Categorias populares"
@@ -195,11 +207,7 @@ export function CategoriesSection() {
           {categories.map((category, idx) => (
             <Link
               key={category.title}
-              to={
-                bootstrapped && isAuthenticated
-                  ? category.href
-                  : "/login"
-              }
+              to={category.href}
               className="group block overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white p-3 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#09bc8a]/40 hover:shadow-xl"
             >
               <motion.div
@@ -306,83 +314,150 @@ export function HowItWorksSection() {
   );
 }
 
-export function FeaturedSection() {
+export type FeaturedSectionProps = {
+  /** Quantidade máxima de cards exibidos. */
+  maxItems?: number;
+  className?: string;
+};
+
+function featuredGridClass(itemCount: number): string {
+  const base = "grid gap-2.5 sm:gap-3 lg:gap-3.5";
+  if (itemCount <= 1) {
+    return `mx-auto max-w-[280px] grid-cols-1 ${base}`;
+  }
+  if (itemCount === 2) {
+    return `mx-auto max-w-lg grid-cols-2 ${base} lg:max-w-none`;
+  }
+  if (itemCount === 3) {
+    return `mx-auto max-w-3xl grid-cols-2 sm:grid-cols-3 ${base} lg:max-w-none`;
+  }
+  return `grid-cols-2 lg:grid-cols-4 ${base}`;
+}
+
+export function FeaturedSection({
+  maxItems = 4,
+  className,
+}: FeaturedSectionProps) {
   const reducedMotion = useReducedMotion();
-  const cards = [
-    {
-      title: "Mountain Bike — Trail",
-      tag: "Bikes",
-      description: "A partir de opções em destaque.",
-      image: "/img/06_destaque_mountain_bike.png",
-    },
-    {
-      title: "Speed — Performance",
-      tag: "Bikes",
-      description: "Modelos leves e rápidos.",
-      image: "/img/07_destaque_speed_bike.png",
-    },
-    {
-      title: "Capacetes e Acessórios",
-      tag: "Acessórios",
-      description: "Proteção e utilidades.",
-      image: "/img/08_destaque_capacetes.png",
-    },
-  ] as const;
+  const [items, setItems] = useState<ProdutoListagemItem[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    setErrorMsg(null);
+    void (async () => {
+      try {
+        const res = await listLancamentos();
+        if (cancelled) return;
+        const raw = Array.isArray(res.data) ? res.data : [];
+        setItems(raw.slice(0, maxItems));
+        setStatus("ready");
+      } catch (e) {
+        if (cancelled) return;
+        setItems([]);
+        if (axios.isAxiosError(e) && !e.response && e.code === "ERR_NETWORK") {
+          setErrorMsg("Sem conexão. Verifique sua rede.");
+        } else {
+          setErrorMsg("Não foi possível carregar os destaques.");
+        }
+        setStatus("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [maxItems]);
+
+  if (status === "ready" && items.length === 0) {
+    return null;
+  }
 
   return (
-    <section className="relative overflow-hidden bg-white">
+    <section className={cn("relative overflow-hidden bg-white", className)}>
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
-      <div className="mx-auto max-w-[1260px] px-5 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1280px] px-4 py-3 sm:px-5 sm:py-4">
         <SectionTitle
           eyebrow="Destaques"
           title="Explore o que está em alta"
-          subtitle="Cards estáticos por enquanto - pronto para conectar no backend depois."
+          subtitle="Anúncios reais disponíveis no marketplace — abra o detalhe sem precisar entrar."
         />
 
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card, idx) => (
-            <motion.div
-              key={card.title}
-              className="group overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#09bc8a]/40 hover:shadow-xl"
-              initial={reducedMotion ? undefined : { opacity: 0, y: 14 }}
-              whileInView={reducedMotion ? undefined : { opacity: 1, y: 0 }}
-              viewport={reducedMotion ? undefined : { once: true, amount: 0.35 }}
-              transition={{
-                duration: 0.55,
-                ease: [0.22, 1, 0.36, 1],
-                delay: reducedMotion ? 0 : idx * 0.06,
-              }}
-            >
-              <div className="p-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#09bc8a]">
-                    {card.tag}
-                  </p>
+        {status === "loading" && (
+          <div
+            className={cn(
+              "mt-3 sm:mt-4",
+              featuredGridClass(Math.min(maxItems, 4)),
+            )}
+            aria-busy="true"
+          >
+            {Array.from({ length: Math.min(maxItems, 4) }).map((_, i) => (
+              <div
+                key={i}
+                className="min-h-[200px] animate-pulse rounded-xl border border-slate-100 bg-slate-100 sm:min-h-[240px]"
+                aria-hidden
+              />
+            ))}
+          </div>
+        )}
 
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                    Em breve
-                  </span>
-                </div>
+        {status === "error" && errorMsg && (
+          <p className="mt-3 text-center text-sm text-slate-500" role="alert">
+            {errorMsg}
+          </p>
+        )}
 
-                <h3 className="mt-3 text-xl font-black leading-tight text-[#0c1b33]">
-                  {card.title}
-                </h3>
+        {status === "ready" && items.length > 0 && (
+          <div className={cn("mt-3 sm:mt-4", featuredGridClass(items.length))}>
+            {items.map((raw, idx) => {
+              const p = itemUnknownToListaView(raw);
+              if (!p) return null;
+              const href = `/produtos/${encodeURIComponent(String(p.id))}`;
+              const Card = reducedMotion ? "div" : motion.div;
+              return (
+                <Card
+                  key={String(p.id)}
+                  className="min-w-0"
+                  {...(reducedMotion
+                    ? {}
+                    : {
+                        initial: { opacity: 0, y: 10 },
+                        whileInView: { opacity: 1, y: 0 },
+                        viewport: { once: true, amount: 0.2 },
+                        transition: {
+                          duration: 0.4,
+                          ease: [0.22, 1, 0.36, 1],
+                          delay: idx * 0.04,
+                        },
+                      })}
+                >
+                  <ProdutoVitrineCard
+                    produto={p}
+                    href={href}
+                    favoriteIds={new Set()}
+                    pendingFavoriteIds={new Set()}
+                    onToggleFavorite={() => {}}
+                    loginHref={`/login?next=${encodeURIComponent(href)}`}
+                  />
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  {card.description}
-                </p>
-              </div>
-
-              <div className="mt-3 h-32 overflow-hidden rounded-xl lg:h-36">
-                <img
-                  src={card.image}
-                  alt={card.title}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                />
-              </div>
-            </motion.div>
-          ))}
+        <div className="mt-4 flex justify-center sm:mt-5">
+          <Button
+            variant="outline"
+            className="h-11 rounded-xl border-[#09bc8a]/30 px-6 font-bold text-[#09bc8a] hover:bg-[#09bc8a]/5"
+            asChild
+          >
+            <Link to={paths.produtos()}>
+              Ver todos os anúncios
+              <FaArrowRight className="ml-2 size-3.5" aria-hidden />
+            </Link>
+          </Button>
         </div>
       </div>
     </section>
@@ -440,10 +515,6 @@ export function FinalCtaSection() {
 }
 
 export function LandingFooter() {
-  const { bootstrapped, isAuthenticated } = useAuth();
-  const marketHref = (href: string) =>
-    bootstrapped && isAuthenticated ? href : "/login";
-
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto grid max-w-7xl justify-items-center gap-8 px-4 py-10 text-center sm:px-6 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr] lg:px-8">
@@ -464,39 +535,36 @@ export function LandingFooter() {
 
         <nav className="flex flex-col items-center gap-2 text-sm font-bold text-slate-600">
           <p className="mb-1 text-sm font-black text-[#0c1b33]">Marketplace</p>
-          <Link className="transition hover:text-[#09bc8a]" to={marketHref("/home?q=bikes")}>
+          <Link className="transition hover:text-[#09bc8a]" to={paths.produtos()}>
             Buscar bikes
           </Link>
 
-          <Link className="transition hover:text-[#09bc8a]" to={marketHref("/home?q=peças")}>
+          <Link className="transition hover:text-[#09bc8a]" to={catalogUrl(paths.produtos(), { q: "peças" })}>
             Peças
           </Link>
 
-          <Link
-            className="transition hover:text-[#09bc8a]"
-            to={marketHref("/home?q=acessórios")}
-          >
+          <Link className="transition hover:text-[#09bc8a]" to={catalogUrl(paths.produtos(), { q: "acessórios" })}>
             Acessórios
           </Link>
 
-          <a className="transition hover:text-[#09bc8a]" href="#como-funciona">
+          <Link className="transition hover:text-[#09bc8a]" to="/#como-funciona">
             Como funciona
-          </a>
+          </Link>
         </nav>
 
         <nav className="flex flex-col items-center gap-2 text-sm font-bold text-slate-600">
           <p className="mb-1 text-sm font-black text-[#0c1b33]">Vender</p>
-          <Link className="transition hover:text-[#09bc8a]" to="/login">
+          <Link className="transition hover:text-[#09bc8a]" to="/login?next=%2Fvender">
             Anunciar minha bike
           </Link>
 
-          <a className="transition hover:text-[#09bc8a]" href="#como-funciona">
+          <Link className="transition hover:text-[#09bc8a]" to="/login?next=%2Fvender">
             Dicas para vender
-          </a>
+          </Link>
 
-          <a className="transition hover:text-[#09bc8a]" href="#como-funciona">
+          <Link className="transition hover:text-[#09bc8a]" to="/login?next=%2Fvender">
             Central de ajuda
-          </a>
+          </Link>
         </nav>
 
         <nav className="flex flex-col items-center gap-2 text-sm font-bold text-slate-600">
@@ -505,21 +573,17 @@ export function LandingFooter() {
             Sobre
           </Link>
 
-          <a className="transition hover:text-[#09bc8a]" href="#" aria-label="Termos">
+          <Link className="transition hover:text-[#09bc8a]" to="/login" aria-label="Termos">
             Termos
-          </a>
+          </Link>
 
-          <a
-            className="transition hover:text-[#09bc8a]"
-            href="#"
-            aria-label="Privacidade"
-          >
+          <Link className="transition hover:text-[#09bc8a]" to="/login" aria-label="Privacidade">
             Privacidade
-          </a>
+          </Link>
 
-          <a className="transition hover:text-[#09bc8a]" href="#" aria-label="Contato">
+          <Link className="transition hover:text-[#09bc8a]" to="/login" aria-label="Contato">
             Contato
-          </a>
+          </Link>
         </nav>
       </div>
 

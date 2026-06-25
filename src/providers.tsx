@@ -1,5 +1,6 @@
 import React from "react";
 import { AuthProvider } from "@/contexts/auth-context";
+import { SellerNavProvider } from "@/contexts/seller-nav-context";
 import { CartProvider } from "@/contexts/cart-context";
 import { FavoritesCountProvider } from "@/contexts/favorites-count-context";
 import { Toaster } from "sonner";
@@ -7,10 +8,11 @@ import { Toaster } from "sonner";
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <FavoritesCountProvider>
-        <CartProvider>
-          {children}
-          <Toaster
+      <SellerNavProvider>
+        <FavoritesCountProvider>
+          <CartProvider>
+            {children}
+            <Toaster
             position="bottom-right"
             richColors
             toastOptions={{
@@ -34,6 +36,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           />
         </CartProvider>
       </FavoritesCountProvider>
+      </SellerNavProvider>
     </AuthProvider>
   );
 }
